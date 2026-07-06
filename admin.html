@@ -1,0 +1,30 @@
+/* admin.css — se carga DESPUÉS de css/styles.css y reutiliza sus variables */
+
+.admin-shell{width:100%; max-width:1100px; margin:0 auto; padding:28px 24px 60px; position:relative; z-index:1;}
+.admin-header{display:flex; align-items:center; justify-content:space-between; gap:16px; margin-bottom:24px; flex-wrap:wrap;}
+.admin-header h1{font-size:24px; margin:0;}
+.admin-header .who{font-size:13px; color:var(--text-dim);}
+.btn-logout{background:transparent; border:1px solid var(--line); color:var(--text-dim); padding:10px 16px; border-radius:12px; font-size:13px; cursor:pointer; transition:all .15s var(--ease);}
+.btn-logout:hover{border-color:var(--danger); color:var(--danger);}
+
+.stats-row{display:grid; grid-template-columns:repeat(auto-fit, minmax(150px,1fr)); gap:12px; margin-bottom:22px;}
+.stat-card{background:var(--surface); border:1px solid var(--line); border-radius:14px; padding:16px;}
+.stat-card .n{font-family:'Space Grotesk',sans-serif; font-size:26px; font-weight:700; color:var(--diode-glow);}
+.stat-card .l{font-size:12px; color:var(--text-dim); margin-top:4px;}
+
+.toolbar{display:flex; gap:10px; margin-bottom:16px; flex-wrap:wrap;}
+.toolbar input, .toolbar select{background:var(--surface); border:1px solid var(--line); border-radius:10px; padding:10px 14px; color:var(--text); font-size:14px; min-width:180px;}
+
+.table-wrap{width:100%; overflow-x:auto; border:1px solid var(--line); border-radius:16px; background:var(--surface);}
+table.admin-table{width:100%; border-collapse:collapse; font-size:13px; min-width:1100px;}
+table.admin-table th{text-align:left; padding:12px 14px; background:var(--surface-2); color:var(--text-dim); font-weight:600; font-size:11px; text-transform:uppercase; letter-spacing:.04em; white-space:nowrap; position:sticky; top:0;}
+table.admin-table td{padding:12px 14px; border-top:1px solid var(--line); white-space:nowrap;}
+table.admin-table tr:hover td{background:rgba(255,122,48,.05);}
+.pill{display:inline-block; padding:2px 9px; border-radius:20px; font-size:11px; border:1px solid var(--line);}
+.pill.invitado{color:var(--text-dim);}
+.pill.registrado{color:var(--current); border-color:rgba(45,212,191,.4);}
+
+.admin-empty{padding:40px; text-align:center; color:var(--text-dim);}
+.admin-denied, .admin-loading{display:flex; flex-direction:column; align-items:center; justify-content:center; min-height:70vh; gap:16px; text-align:center; padding:24px;}
+.admin-denied h2{margin:0;}
+.admin-denied p{color:var(--text-dim); max-width:360px;}

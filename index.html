@@ -1,0 +1,1178 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>Diodo — Encuentra tu camino</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<style>
+:root{
+  --bg:#0B0F14; --surface:#121821; --surface-2:#1A222D; --line:#26303C;
+  --text:#EDF1F5; --text-dim:#8B98A6; --diode:#FF7A30; --diode-glow:#FFB066;
+  --current:#2DD4BF; --danger:#FF5C5C; --radius:18px; --maxw:560px;
+  --ease:cubic-bezier(.22,1,.36,1);
+}
+*{box-sizing:border-box;}
+html,body{margin:0;padding:0;}
+body{background:var(--bg); color:var(--text); font-family:'Inter',sans-serif; min-height:100vh; display:flex; flex-direction:column; align-items:center; -webkit-font-smoothing:antialiased;}
+body::before{content:""; position:fixed; inset:0; background:radial-gradient(circle at 50% -10%, rgba(255,122,48,.10), transparent 45%), radial-gradient(circle at 100% 100%, rgba(45,212,191,.06), transparent 50%); pointer-events:none; z-index:0;}
+h1,h2,h3,.display{font-family:'Space Grotesk',sans-serif;}
+.mono{font-family:'JetBrains Mono',monospace;}
+
+.rail-wrap{width:100%; max-width:var(--maxw); padding:22px 24px 10px; position:relative; z-index:1;}
+.rail{display:flex; align-items:center; gap:0;}
+.node{width:9px;height:9px;border-radius:50%; background:var(--line); flex:0 0 auto; transition:background .4s var(--ease), box-shadow .4s var(--ease);}
+.node.active{background:var(--diode); box-shadow:0 0 0 4px rgba(255,122,48,.18), 0 0 14px rgba(255,122,48,.7);}
+.node.current{background:var(--diode-glow); box-shadow:0 0 0 5px rgba(255,176,102,.22), 0 0 18px rgba(255,176,102,.95); animation:pulse 1.6s ease-in-out infinite;}
+@keyframes pulse{0%,100%{transform:scale(1);}50%{transform:scale(1.35);}}
+.seg{flex:1 1 auto; height:2px; background:var(--line); position:relative; overflow:hidden;}
+.seg.active::after{content:""; position:absolute; inset:0; background:linear-gradient(90deg,var(--diode),var(--diode-glow)); animation:flow .55s var(--ease) forwards;}
+@keyframes flow{from{transform:translateX(-100%);}to{transform:translateX(0);}}
+.rail-label{display:flex; justify-content:space-between; margin-top:10px; font-size:11px; letter-spacing:.06em; color:var(--text-dim); text-transform:uppercase; font-family:'JetBrains Mono',monospace;}
+
+.shell{width:100%; max-width:var(--maxw); flex:1; display:flex; flex-direction:column; padding:8px 24px 40px; position:relative; z-index:1;}
+.screen{display:none; flex-direction:column; gap:22px; animation:enter .45s var(--ease);}
+.screen.show{display:flex;}
+@keyframes enter{from{opacity:0; transform:translateY(14px);} to{opacity:1; transform:translateY(0);}}
+.eyebrow{font-family:'JetBrains Mono',monospace; font-size:12px; letter-spacing:.12em; color:var(--current); text-transform:uppercase; display:flex; align-items:center; gap:8px;}
+.eyebrow::before{content:""; width:6px;height:6px;border-radius:50%; background:var(--current); box-shadow:0 0 8px var(--current);}
+h2.title{font-size:26px; line-height:1.25; margin:0; font-weight:600;}
+p.sub{color:var(--text-dim); margin:0; font-size:15px; line-height:1.5;}
+
+.field{display:flex; flex-direction:column; gap:8px; position:relative;}
+.field label{font-size:13px; color:var(--text-dim); font-weight:500;}
+input[type=text], input[type=number], select{width:100%; background:var(--surface); border:1px solid var(--line); border-radius:12px; padding:14px 16px; color:var(--text); font-size:15px; font-family:'Inter',sans-serif; outline:none; transition:border-color .2s, box-shadow .2s; appearance:none;}
+select{background-image:url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="%238B98A6" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg>'); background-repeat:no-repeat; background-position:right 14px center; padding-right:40px;}
+input:focus, select:focus{border-color:var(--diode); box-shadow:0 0 0 3px rgba(255,122,48,.15);}
+input::placeholder{color:#5C6773;}
+select:disabled, input:disabled{opacity:.4; cursor:not-allowed;}
+.row2{display:grid; grid-template-columns:1fr 1fr; gap:12px;}
+
+.chip-group{display:flex; flex-wrap:wrap; gap:10px;}
+.chip{border:1px solid var(--line); background:var(--surface); color:var(--text); padding:10px 16px; border-radius:30px; font-size:14px; cursor:pointer; transition:all .18s var(--ease); user-select:none;}
+.chip:hover{border-color:var(--diode-glow);}
+.chip.selected{background:linear-gradient(135deg,var(--diode),#E0571A); border-color:transparent; color:#1A0E05; font-weight:600; box-shadow:0 4px 14px rgba(255,122,48,.3);}
+
+.cardbox{border:1px solid var(--line); background:var(--surface); border-radius:var(--radius); padding:18px; cursor:pointer; transition:all .2s var(--ease);}
+.cardbox:hover{border-color:var(--diode-glow); transform:translateY(-2px);}
+.cardbox.selected{border-color:var(--diode); background:linear-gradient(135deg, rgba(255,122,48,.10), rgba(255,122,48,.03)); box-shadow:0 0 0 1px var(--diode);}
+.cardbox h4{margin:0 0 4px; font-size:16px; font-family:'Space Grotesk',sans-serif;}
+.cardbox p{margin:0; font-size:13px; color:var(--text-dim);}
+
+.radio-row{display:flex; flex-direction:column; gap:10px;}
+.radio-card{display:flex; align-items:center; gap:12px; border:1px solid var(--line); background:var(--surface); border-radius:14px; padding:14px 16px; cursor:pointer; transition:all .18s var(--ease);}
+.radio-card:hover{border-color:var(--diode-glow);}
+.radio-card.selected{border-color:var(--diode); background:rgba(255,122,48,.07);}
+.radio-dot{width:18px;height:18px;border-radius:50%; border:2px solid var(--line); flex:0 0 auto; position:relative;}
+.radio-card.selected .radio-dot{border-color:var(--diode);}
+.radio-card.selected .radio-dot::after{content:""; position:absolute; inset:3px; border-radius:50%; background:var(--diode);}
+.radio-text{flex:1;}
+.radio-text strong{display:block; font-size:14px; font-weight:600;}
+.radio-text span{font-size:12px; color:var(--text-dim);}
+
+.q-counter{font-family:'JetBrains Mono',monospace; font-size:12px; color:var(--text-dim);}
+.q-card{background:var(--surface); border:1px solid var(--line); border-radius:var(--radius); padding:24px; text-align:center; transition:opacity .28s var(--ease), transform .28s var(--ease);}
+.q-card h3{font-size:19px; margin:0 0 6px;}
+.q-card p{color:var(--text-dim); font-size:13px; margin:0;}
+.q-options{display:flex; flex-direction:column; gap:10px; transition:opacity .28s var(--ease), transform .28s var(--ease);}
+.q-opt{border:1px solid var(--line); background:var(--surface); border-radius:14px; padding:14px 16px; cursor:pointer; transition:all .16s var(--ease); display:flex; align-items:center; justify-content:space-between; font-size:14px;}
+.q-opt:hover{border-color:var(--diode-glow); transform:translateX(2px);}
+.q-opt .qval{font-family:'JetBrains Mono',monospace; font-size:11px; color:var(--text-dim);}
+.q-progress-mini{display:flex; gap:5px;}
+.q-progress-mini span{width:18px; height:4px; border-radius:3px; background:var(--line); transition:background .3s var(--ease);}
+.q-progress-mini span.done{background:var(--diode);}
+.q-slide-out-left{opacity:0; transform:translateX(-24px);}
+.q-slide-out-right{opacity:0; transform:translateX(24px);}
+.q-slide-in{opacity:0; transform:translateX(24px);}
+
+.stat-grid{display:grid; grid-template-columns:1fr 1fr; gap:12px;}
+.stat-box{background:var(--surface); border:1px solid var(--line); border-radius:14px; padding:16px;}
+.stat-box .lbl{font-size:12px; color:var(--text-dim); margin-bottom:6px;}
+.stat-box .num{font-family:'Space Grotesk',sans-serif; font-size:22px; font-weight:700; color:var(--diode-glow);}
+.meter{height:8px; background:var(--line); border-radius:5px; overflow:hidden; margin-top:8px;}
+.meter > div{height:100%; background:linear-gradient(90deg,var(--current),#21A697); border-radius:5px; transition:width .6s var(--ease);}
+.bullets{display:flex; flex-direction:column; gap:10px; margin:0; padding:0;}
+.bullets li{list-style:none; padding-left:18px; position:relative; font-size:14px; color:var(--text-dim); line-height:1.5;}
+.bullets li::before{content:"›"; position:absolute; left:0; color:var(--diode); font-weight:700;}
+.tag-row{display:flex; flex-wrap:wrap; gap:8px;}
+.tag{font-size:12px; background:var(--surface-2); border:1px solid var(--line); padding:6px 11px; border-radius:20px; color:var(--text-dim);}
+
+.btn-primary{width:100%; background:linear-gradient(135deg,var(--diode),#E0571A); color:#1A0E05; border:none; padding:16px; border-radius:14px; font-size:15px; font-weight:700; font-family:'Space Grotesk',sans-serif; cursor:pointer; transition:transform .15s var(--ease), box-shadow .15s var(--ease); box-shadow:0 6px 20px rgba(255,122,48,.28);}
+.btn-primary:hover{transform:translateY(-1px);}
+.btn-primary:active{transform:translateY(1px) scale(.99);}
+.btn-primary:disabled{opacity:.35; cursor:not-allowed; box-shadow:none;}
+.btn-ghost{width:100%; background:transparent; color:var(--text-dim); border:1px solid var(--line); padding:14px; border-radius:14px; font-size:14px; font-weight:600; cursor:pointer; transition:all .15s var(--ease);}
+.btn-ghost:hover{border-color:var(--diode-glow); color:var(--text);}
+.btn-link{background:none; border:none; color:var(--text-dim); font-size:13px; cursor:pointer; text-decoration:underline; align-self:center; padding:4px;}
+.btn-link:hover{color:var(--text);}
+.nav-row{display:flex; gap:10px; margin-top:6px;}
+.nav-row .btn-ghost{flex:0 0 auto; width:auto; padding:14px 18px;}
+.nav-row .btn-primary{flex:1;}
+
+.gate{display:flex; flex-direction:column; align-items:center; justify-content:center; min-height:88vh; gap:34px; text-align:center; padding:24px;}
+.logo-mark{width:64px;height:64px; display:flex; align-items:center; justify-content:center;}
+.gate h1{font-size:34px; margin:0;}
+.gate p{color:var(--text-dim); max-width:340px; margin:0; font-size:15px; line-height:1.5;}
+.gate .actions{display:flex; flex-direction:column; gap:12px; width:100%; max-width:320px;}
+.btn-google{display:flex; align-items:center; justify-content:center; gap:10px; background:#fff; color:#1A1A1A; border:none; border-radius:14px; padding:15px; font-weight:600; font-size:14px; cursor:pointer; transition:transform .15s var(--ease);}
+.btn-google:hover{transform:translateY(-1px);}
+
+.result-hero{background:linear-gradient(160deg, var(--surface-2), var(--surface)); border:1px solid var(--line); border-radius:var(--radius); padding:26px 22px; text-align:center;}
+.result-hero .code{font-family:'JetBrains Mono',monospace; color:var(--diode-glow); font-size:13px; letter-spacing:.08em; margin-bottom:8px; text-transform:uppercase;}
+.result-hero h3{font-size:22px; margin:6px 0 0;}
+.match-bar-row{display:flex; align-items:center; gap:10px; font-size:12px;}
+.match-bar{flex:1; height:6px; background:var(--line); border-radius:4px; overflow:hidden;}
+.match-bar > div{height:100%; background:linear-gradient(90deg,var(--current),var(--diode-glow));}
+
+.plan-step{display:flex; gap:14px; border:1px solid var(--line); background:var(--surface); border-radius:14px; padding:16px;}
+.plan-step .num{font-family:'Space Grotesk',sans-serif; font-weight:700; font-size:20px; color:var(--diode); flex:0 0 auto; width:28px;}
+.plan-step h4{margin:0 0 4px; font-size:15px;}
+.plan-step p{margin:0; font-size:13px; color:var(--text-dim); line-height:1.5;}
+
+.toast{position:fixed; bottom:24px; left:50%; transform:translateX(-50%) translateY(20px); background:var(--surface-2); border:1px solid var(--line); padding:12px 20px; border-radius:12px; font-size:13px; opacity:0; transition:all .3s var(--ease); z-index:50; display:flex; align-items:center; gap:8px; max-width:90vw; text-align:left;}
+.toast.show{opacity:1; transform:translateX(-50%) translateY(0);}
+.toast .dot{width:7px;height:7px;border-radius:50%;background:var(--current); box-shadow:0 0 8px var(--current); flex:0 0 auto;}
+.toast .dot.err{background:var(--danger); box-shadow:0 0 8px var(--danger);}
+.skip{font-size:12px; color:var(--text-dim); cursor:pointer; align-self:flex-start; text-decoration:underline;}
+.inst-meta{display:flex; gap:8px; flex-wrap:wrap; margin-top:6px;}
+.badge{font-size:11px; padding:3px 9px; border-radius:20px; border:1px solid var(--line); color:var(--text-dim);}
+.badge.pub{color:var(--current); border-color:rgba(45,212,191,.4);}
+.badge.priv{color:var(--diode-glow); border-color:rgba(255,176,102,.4);}
+.badge.ia{color:#B9A6FF; border-color:rgba(185,166,255,.4);}
+.scroll-list{max-height:420px; overflow-y:auto; display:flex; flex-direction:column; gap:12px; padding-right:2px;}
+.scroll-list::-webkit-scrollbar{width:6px;}
+.scroll-list::-webkit-scrollbar-thumb{background:var(--line); border-radius:3px;}
+
+.autocomplete-list{position:absolute; top:100%; left:0; right:0; margin-top:6px; background:var(--surface-2); border:1px solid var(--line); border-radius:12px; max-height:240px; overflow-y:auto; z-index:20; box-shadow:0 12px 28px rgba(0,0,0,.4); display:none;}
+.autocomplete-list.show{display:block;}
+.ac-item{padding:11px 16px; font-size:14px; cursor:pointer; border-bottom:1px solid var(--line); transition:background .12s;}
+.ac-item:last-child{border-bottom:none;}
+.ac-item:hover, .ac-item.hover{background:rgba(255,122,48,.12);}
+.ac-item mark{background:none; color:var(--diode-glow); font-weight:700;}
+.ac-empty{padding:12px 16px; font-size:13px; color:var(--text-dim);}
+.spinner-mini{width:14px;height:14px;border-radius:50%;border:2px solid var(--line); border-top-color:var(--diode); display:inline-block; animation:spin .7s linear infinite; margin-right:6px; vertical-align:-2px;}
+@keyframes spin{to{transform:rotate(360deg);}}
+.loading-row{display:flex; align-items:center; gap:8px; font-size:13px; color:var(--text-dim); padding:14px;}
+@media (max-width:420px){ .row2{grid-template-columns:1fr;} .stat-grid{grid-template-columns:1fr;} }
+</style>
+</head>
+<body>
+
+<div class="rail-wrap" id="railWrap" style="display:none;">
+  <div class="rail" id="rail"></div>
+  <div class="rail-label"><span id="railStepLabel">Paso 1 / 8</span><span id="railNameLabel">Perfil</span></div>
+</div>
+
+<div class="shell" id="shell">
+
+  <!-- PANTALLA 0: GATE -->
+  <div class="screen show" id="screen-0">
+    <div class="gate">
+      <div class="logo-mark">
+        <svg width="64" height="64" viewBox="0 0 64 64" fill="none">
+          <circle cx="32" cy="32" r="30" stroke="#26303C" stroke-width="2"/>
+          <path d="M20 32H30L34 22L38 42L42 32H44" stroke="#FF7A30" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+      </div>
+      <div>
+        <h1>Diodo</h1>
+        <p>La corriente solo avanza en un sentido — el tuyo. Cuéntanos quién eres y te mostramos el camino real hacia tu carrera.</p>
+      </div>
+      <div class="actions">
+        <button class="btn-google" onclick="loginConGoogle(1);">
+          <svg width="18" height="18" viewBox="0 0 18 18"><path fill="#4285F4" d="M17.64 9.2c0-.64-.06-1.25-.16-1.84H9v3.48h4.84c-.21 1.13-.85 2.09-1.81 2.73v2.27h2.92c1.71-1.57 2.69-3.88 2.69-6.64z"/><path fill="#34A853" d="M9 18c2.43 0 4.47-.8 5.96-2.18l-2.92-2.27c-.81.54-1.84.86-3.04.86-2.34 0-4.32-1.58-5.03-3.71H.96v2.33C2.44 15.98 5.48 18 9 18z"/><path fill="#FBBC05" d="M3.97 10.7a5.4 5.4 0 010-3.4V4.97H.96a9 9 0 000 8.06l3.01-2.33z"/><path fill="#EA4335" d="M9 3.58c1.32 0 2.5.45 3.44 1.35l2.58-2.58C13.46.89 11.43 0 9 0 5.48 0 2.44 2.02.96 4.97l3.01 2.33C4.68 5.16 6.66 3.58 9 3.58z"/></svg>
+          Iniciar sesión con Google
+        </button>
+        <button class="btn-link" onclick="play('tap'); state.guest=true; goTo(1);">Continuar como invitado</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- PANTALLA 1: PERFIL -->
+  <div class="screen" id="screen-1">
+    <div class="eyebrow">Paso 1 — Tu punto de partida</div>
+    <h2 class="title">¡Hola! Queremos ayudarte a encontrar tu camino.</h2>
+    <p class="sub">Cuéntanos un poco de ti para personalizar tu experiencia.</p>
+
+    <div class="row2">
+      <div class="field"><label>Nombre</label><input type="text" id="inNombre" placeholder="Escribe tu nombre"></div>
+      <div class="field"><label>Apellido</label><input type="text" id="inApellido" placeholder="Escribe tu apellido"></div>
+    </div>
+
+    <div class="field"><label>Edad</label><div class="chip-group" id="grpEdad"></div></div>
+
+    <div class="field">
+      <label>Sexo</label>
+      <div class="chip-group" id="grpSexo">
+        <div class="chip" data-val="Femenino">Femenino</div>
+        <div class="chip" data-val="Masculino">Masculino</div>
+        <div class="chip" data-val="Prefiero no decir">Prefiero no decir</div>
+      </div>
+    </div>
+
+    <div class="field">
+      <label>📍 Ubicación actual</label>
+      <div class="row2">
+        <select id="selDepto"><option value="">Cargando departamentos…</option></select>
+        <select id="selProv" disabled><option value="">Provincia</option></select>
+      </div>
+      <select id="selDist" disabled><option value="">Distrito</option></select>
+      <input type="text" id="inDistOtro" placeholder="Escribe el nombre de tu distrito" style="display:none;">
+    </div>
+
+    <div class="field">
+      <label>¿Estás estudiando actualmente?</label>
+      <select id="selSituacion">
+        <option value="">Selecciona una opción</option>
+        <option value="colegio">Sí, estoy en el colegio</option>
+        <option value="egresado">No, ya egresé del colegio</option>
+        <option value="otro">Estoy trabajando o estudiando otra carrera</option>
+      </select>
+    </div>
+
+    <div id="bloqueColegio" style="display:none;" class="field">
+      <div class="row2">
+        <select id="selGrado">
+          <option value="">Año / Grado</option>
+          <option>1ro de secundaria</option><option>2do de secundaria</option><option>3ro de secundaria</option>
+          <option>4to de secundaria</option><option>5to de secundaria</option>
+        </select>
+      </div>
+      <label style="font-size:13px; color:var(--text-dim); font-weight:500;">¿En qué colegio estudias?</label>
+      <input type="text" id="inColegio" placeholder="Escribe el nombre de tu colegio" list="colegiosList" autocomplete="off">
+      <datalist id="colegiosList"></datalist>
+      <span id="colegioHint" style="font-size:12px; color:var(--text-dim);"></span>
+    </div>
+
+    <button class="btn-primary" id="btnP1" onclick="play('confirm'); validateAndGo(2);">Comenzar mi diagnóstico</button>
+  </div>
+
+  <!-- PANTALLA 2: INTERESES, UNA PREGUNTA A LA VEZ -->
+  <div class="screen" id="screen-2">
+    <div class="eyebrow">Paso 2 — Autoconocimiento</div>
+    <div class="q-progress-mini" id="qProgressMini"></div>
+    <div class="q-card" id="qCard">
+      <span class="q-counter" id="qCounter">Pregunta 1 de 6</span>
+      <h3 id="qTitle">—</h3>
+      <p id="qSubtitle">—</p>
+    </div>
+    <div class="q-options" id="qOptions"></div>
+    <div class="nav-row">
+      <button class="btn-ghost" onclick="play('back'); prevQuestion();">← Atrás</button>
+    </div>
+  </div>
+
+  <!-- PANTALLA 3: FUTURO Y ECONOMÍA -->
+  <div class="screen" id="screen-3">
+    <div class="eyebrow">Paso 3 — Tu futuro en Perú</div>
+    <h2 class="title">Para darte opciones realistas, planeemos tu futuro.</h2>
+
+    <div class="field">
+      <label>¿En qué departamento de Perú te gustaría estudiar?</label>
+      <select id="selDestino"></select>
+    </div>
+    <div class="field">
+      <label>¿En qué provincia?</label>
+      <select id="selProvDestino" disabled><option value="">Primero elige un departamento</option></select>
+    </div>
+
+    <div class="field">
+      <label>¿Ya tienes una carrera en mente? (opcional)</label>
+      <input type="text" id="inCarreraDeseada" placeholder="Escribe la carrera que quieres estudiar" autocomplete="off">
+      <div class="autocomplete-list" id="acCarreras"></div>
+      <span class="sub" style="font-size:12px;">Si la dejas vacía, Diodo te la sugiere según tus respuestas del paso anterior.</span>
+    </div>
+
+    <div class="field">
+      <label>¿Cuánto se puede invertir mensualmente en tu pensión?</label>
+      <div class="radio-row" id="grpPresupuesto">
+        <div class="radio-card" data-val="0"><div class="radio-dot"></div><div class="radio-text"><strong>Solo públicas / nacionales</strong><span>S/. 0</span></div></div>
+        <div class="radio-card" data-val="300-800"><div class="radio-dot"></div><div class="radio-text"><strong>Escala económica</strong><span>S/. 300 – S/. 800</span></div></div>
+        <div class="radio-card" data-val="800-1500"><div class="radio-dot"></div><div class="radio-text"><strong>Escala intermedia</strong><span>S/. 800 – S/. 1500</span></div></div>
+        <div class="radio-card" data-val="1500+"><div class="radio-dot"></div><div class="radio-text"><strong>Escala alta</strong><span>Más de S/. 1500</span></div></div>
+        <div class="radio-card" data-val="otro"><div class="radio-dot"></div><div class="radio-text"><strong>Otro monto</strong><span>Escribir una cifra exacta</span></div></div>
+      </div>
+      <input type="number" min="0" id="inPresupuestoOtro" placeholder="Escribe el monto mensual en soles" style="display:none;">
+    </div>
+
+    <div class="nav-row">
+      <button class="btn-ghost" onclick="play('back'); goTo(2);">← Atrás</button>
+      <button class="btn-primary" id="btnP3" onclick="play('confirm'); validateAndGo(4);">Ver mis resultados</button>
+    </div>
+  </div>
+
+  <!-- PANTALLA 4: MATCH -->
+  <div class="screen" id="screen-4">
+    <div class="eyebrow">Paso 4 — Tus opciones ideales</div>
+    <h2 class="title" id="matchTitle">¡Listo! Según tu perfil, tu código de personalidad es...</h2>
+
+    <div class="result-hero">
+      <div class="code" id="matchCode">—</div>
+      <h3 id="matchCarrera">—</h3>
+      <p class="sub" style="margin-top:6px;" id="matchSub">—</p>
+      <div class="match-bar-row" style="margin-top:14px;">
+        <span class="mono">Afinidad</span><div class="match-bar"><div id="matchBarPrincipal" style="width:0%;"></div></div><span class="mono" id="matchPctPrincipal">0%</span>
+      </div>
+    </div>
+
+    <p class="sub">También harías un buen "match" con estas opciones, ordenadas por afinidad real con tus respuestas:</p>
+    <div id="alternativas" style="display:flex; flex-direction:column; gap:10px;"></div>
+
+    <div class="nav-row">
+      <button class="btn-ghost" onclick="play('back'); goTo(3);">← Atrás</button>
+      <button class="btn-primary" id="btnP4" disabled onclick="play('confirm'); goTo(5);">Ver ficha de la carrera</button>
+    </div>
+  </div>
+
+  <!-- PANTALLA 5: BAÑO DE REALIDAD -->
+  <div class="screen" id="screen-5">
+    <div class="eyebrow">Paso 5 — El baño de realidad</div>
+    <h2 class="title">Así es el mercado laboral para <span id="carreraNombre5">esta carrera</span> en el Perú actual.</h2>
+    <p class="sub" id="carreraDesc5"></p>
+
+    <div class="stat-grid">
+      <div class="stat-box"><div class="lbl">Sueldo Junior (al egresar)</div><div class="num" id="sueldoJunior">S/. 0</div></div>
+      <div class="stat-box"><div class="lbl">Sueldo Senior (5 años exp.)</div><div class="num" id="sueldoSenior">S/. 0</div></div>
+    </div>
+
+    <div class="stat-box">
+      <div class="lbl">Demanda en el mercado actual</div>
+      <div class="meter"><div id="demandaBar" style="width:0%;"></div></div>
+      <div class="mono" id="demandaTxt" style="margin-top:6px; font-size:12px; color:var(--text-dim);"></div>
+    </div>
+
+    <div class="field">
+      <label>¿Cómo es el día a día?</label>
+      <ul class="bullets" id="ambitos"></ul>
+    </div>
+
+    <div class="field">
+      <label>Cursos / habilidades clave de la carrera</label>
+      <div class="tag-row" id="cursosClave"></div>
+    </div>
+
+    <div class="field">
+      <label>Modalidad de estudio</label>
+      <div class="tag-row" id="modalidadTags"></div>
+    </div>
+    <p class="sub" style="font-size:11px;" id="fuenteDatos5"></p>
+
+    <div class="nav-row">
+      <button class="btn-ghost" onclick="play('back'); goTo(4);">← Atrás</button>
+      <button class="btn-primary" onclick="play('confirm'); goTo(6);">Ver dónde estudiar</button>
+    </div>
+  </div>
+
+  <!-- PANTALLA 6: INSTITUCIONES -->
+  <div class="screen" id="screen-6">
+    <div class="eyebrow">Paso 6 — Tus opciones reales de estudio</div>
+    <h2 class="title">Estas son las opciones para estudiar <span id="carreraNombre6"></span> en <span id="destinoNombre6"></span> según tu presupuesto.</h2>
+    <p class="sub" id="instFiltroNota"></p>
+    <div class="scroll-list" id="instituciones"><div class="loading-row"><span class="spinner-mini"></span>Buscando instituciones reales…</div></div>
+    <div class="nav-row">
+      <button class="btn-ghost" onclick="play('back'); goTo(5);">← Atrás</button>
+      <button class="btn-primary" id="btnP6" disabled onclick="play('confirm'); validateAndGo(7);">Generar mi Plan de Vida definitivo</button>
+    </div>
+  </div>
+
+  <!-- PANTALLA 7: GATE REGISTRO -->
+  <div class="screen" id="screen-7">
+    <div class="gate" style="min-height:60vh;">
+      <div class="logo-mark">
+        <svg width="56" height="56" viewBox="0 0 64 64" fill="none">
+          <circle cx="32" cy="32" r="30" stroke="#26303C" stroke-width="2"/>
+          <path d="M20 32H30L34 22L38 42L42 32H44" stroke="#FF7A30" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+      </div>
+      <div>
+        <h2 class="title" style="text-align:center;" id="gateNombre">¡Excelente elección!</h2>
+        <p class="sub">Tu perfil está completo. Para desbloquear tu Plan de Ruta con IA y descargarlo en PDF, solo necesitas guardar tu cuenta.</p>
+      </div>
+      <div class="actions">
+        <button class="btn-google" onclick="loginConGoogle(8);">Continuar con Google</button>
+        <button class="btn-link" onclick="play('back'); goTo(6);">← Volver y revisar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- PANTALLA 8: PLAN FINAL -->
+  <div class="screen" id="screen-8">
+    <div class="eyebrow">Listo — Tu plan de vida</div>
+    <h2 class="title" id="planTitulo">¡Felicidades! Aquí tienes tu hoja de ruta.</h2>
+    <div class="plan-step"><div class="num">01</div><div><h4>Preparación</h4><p id="paso1Txt"></p></div></div>
+    <div class="plan-step"><div class="num">02</div><div><h4>Transición</h4><p id="paso2Txt"></p></div></div>
+    <div class="plan-step"><div class="num">03</div><div><h4>Inserción laboral</h4><p id="paso3Txt"></p></div></div>
+    <button class="btn-primary" onclick="play('confirm'); toast('Generando PDF...');">⬇ Descargar mi Plan en PDF</button>
+    <button class="btn-ghost" onclick="play('back'); goTo(state.guest?6:7);">← Atrás para modificar</button>
+  </div>
+
+</div>
+
+<div class="toast" id="toast"><span class="dot" id="toastDot"></span><span id="toastTxt"></span></div>
+
+<script>
+/* =====================================================================
+   CONFIGURACIÓN — datos de tu proyecto Supabase
+   (Project Settings > API). El anon key es público y seguro de exponer
+   en el cliente porque las tablas están protegidas con RLS de solo-lectura.
+   ===================================================================== */
+const SUPABASE_URL = "https://fybsukirjnbmdjqogdue.supabase.co";
+const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZ5YnN1a2lyam5ibWRqcW9nZHVlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODIyNjMzMjIsImV4cCI6MjA5NzgzOTMyMn0.vUQhlPrlILiz5EcY7x5tF6x7olqe7Dao7CUDZ1T2S84";
+const EDGE_FN_BUSCAR_INSTITUCIONES = `${SUPABASE_URL}/functions/v1/gemini-buscar-instituciones`;
+
+const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+/* ===================== SONIDO (Web Audio, sin archivos) ===================== */
+let audioCtx;
+function ensureAudio(){ if(!audioCtx){ audioCtx = new (window.AudioContext||window.webkitAudioContext)(); } }
+function play(type){
+  try{
+    ensureAudio();
+    const t = audioCtx.currentTime;
+    const o = audioCtx.createOscillator();
+    const g = audioCtx.createGain();
+    o.connect(g); g.connect(audioCtx.destination);
+    let freq=600, dur=.07, wave='sine';
+    if(type==='tap'){ freq=720; dur=.05; }
+    if(type==='confirm'){ freq=880; dur=.09; wave='triangle'; }
+    if(type==='back'){ freq=320; dur=.08; wave='sine'; }
+    if(type==='select'){ freq=1040; dur=.045; wave='triangle'; }
+    if(type==='error'){ freq=180; dur=.16; wave='sawtooth'; }
+    if(type==='type'){ freq=950; dur=.02; wave='sine'; }
+    o.type = wave; o.frequency.setValueAtTime(freq, t);
+    g.gain.setValueAtTime(.0001, t);
+    g.gain.exponentialRampToValueAtTime(type==='type'?.06:.14, t+.01);
+    g.gain.exponentialRampToValueAtTime(.0001, t+dur);
+    o.start(t); o.stop(t+dur+.02);
+  }catch(e){}
+}
+document.addEventListener('click', ()=>{ ensureAudio(); }, {once:true});
+
+/* ===================== ESTADO GLOBAL ===================== */
+const state = {
+  step:0, guest:false, sessionId:null,
+  nombre:'', apellido:'', edad:'', sexo:'',
+  deptoId:null, provId:null, distId:null, depto:'', prov:'', dist:'',
+  situacion:'', grado:'', colegio:'',
+  hobbies:{}, destino:'', destinoId:null, destinoProv:'', destinoProvId:null,
+  destinoTouched:false,
+  presupuestoCat:'', presupuestoMonto:null,
+  carreraDeseada:'', carreraDeseadaFamiliaId:null,
+  carreraElegida:null, carreraElegidaFamiliaId:null,
+  institucionElegida:null
+};
+// Cada visitante recibe un id de sesión propio para poder actualizar su
+// misma fila si retrocede y cambia algo, en vez de crear una fila duplicada.
+state.sessionId = (window.crypto && crypto.randomUUID) ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+
+const STEP_NAMES = ['Inicio','Perfil','Intereses','Futuro','Match','Realidad','Estudios','Registro','Plan'];
+
+function toast(msg, isError){
+  const t = document.getElementById('toast');
+  document.getElementById('toastTxt').textContent = msg;
+  document.getElementById('toastDot').classList.toggle('err', !!isError);
+  t.classList.add('show');
+  clearTimeout(window._toastTimer);
+  window._toastTimer = setTimeout(()=>t.classList.remove('show'), 2800);
+}
+
+// Escapa texto que viene de la base de datos / del usuario antes de insertarlo
+// con innerHTML, para evitar que nombres con caracteres especiales rompan el
+// layout o inyecten HTML.
+function escapeHtml(str){
+  if(str===null || str===undefined) return '';
+  return String(str)
+    .replaceAll('&','&amp;')
+    .replaceAll('<','&lt;')
+    .replaceAll('>','&gt;')
+    .replaceAll('"','&quot;')
+    .replaceAll("'",'&#39;');
+}
+
+/* ===================== LOGIN CON GOOGLE =====================
+   signInWithOAuth hace un redirect COMPLETO de página (a Google y de
+   vuelta), lo que borra cualquier variable en memoria. Por eso, antes de
+   redirigir, guardamos `state` (y en qué pregunta del test iba, si aplica)
+   en sessionStorage, y en init() lo restauramos junto con la sesión. */
+function guardarStatePreLogin(nextStep){
+  try{
+    sessionStorage.setItem('diodo_state', JSON.stringify(state));
+    sessionStorage.setItem('diodo_next_step', String(nextStep));
+    sessionStorage.setItem('diodo_qIndex', String(qIndex));
+  }catch(e){ console.error('No se pudo guardar el estado antes del login:', e); }
+}
+async function loginConGoogle(nextStep){
+  play('tap');
+  guardarStatePreLogin(nextStep);
+  const { error } = await sb.auth.signInWithOAuth({
+    provider: 'google',
+    options: { redirectTo: window.location.href.split('#')[0] }
+  });
+  if(error){
+    console.error(error);
+    toast('No se pudo iniciar sesión con Google.', true);
+  }
+  // Si no hubo error, el navegador redirige a Google y luego vuelve aquí;
+  // la sesión y el state guardado se restauran en init().
+}
+
+/* ===================== GUARDADO EN SUPABASE (para el panel de admin) ===================== */
+async function guardarRespuestaEnBD(){
+  try{
+    const { data: { user } } = await sb.auth.getUser();
+    const payload = {
+      id: state.sessionId,
+      user_id: user ? user.id : null,
+      email: user ? user.email : null,
+      nombre: state.nombre,
+      apellido: state.apellido,
+      edad: state.edad ? Number(state.edad) : null,
+      sexo: state.sexo,
+      depto_residencia: state.depto,
+      prov_residencia: state.prov,
+      dist_residencia: state.dist,
+      situacion: state.situacion,
+      grado: state.grado,
+      colegio: state.colegio,
+      destino_depto: state.destino,
+      destino_prov: state.destinoProv,
+      presupuesto_cat: state.presupuestoCat,
+      presupuesto_monto: state.presupuestoMonto,
+      carrera_deseada: state.carreraDeseada,
+      carrera_elegida: state.carreraElegida,
+      institucion_elegida: state.institucionElegida,
+      es_invitado: !!state.guest,
+      hobbies: state.hobbies,
+      updated_at: new Date().toISOString()
+    };
+    const { error } = await sb.from('respuestas_usuarios').upsert(payload, { onConflict: 'id' });
+    if(error) console.error('No se pudo guardar la respuesta en Supabase:', error);
+  }catch(e){
+    console.error('Error guardando respuesta:', e);
+  }
+}
+
+/* =====================================================================
+   CARGA DE DATOS DESDE SUPABASE
+   ===================================================================== */
+const DB = {
+  departamentos: [],          // [{id, nombre}]
+  provinciasPorDepto: {},     // deptoId -> [{id, nombre}]
+  distritosPorProv: {},       // provId -> [{id, nombre}]
+  preguntas: [],               // [{orden, clave, titulo, subtitulo}]
+  familias: [],                // [{id, nombre, pesos}]
+  detallePorFamilia: {},       // familiaId -> detalle
+};
+
+async function cargarUbigeoBase(){
+  const { data, error } = await sb.from('ubigeo_departamentos').select('id, nombre').order('nombre');
+  if(error){ toast('No se pudo conectar a Supabase. Revisa la configuración.', true); console.error(error); return; }
+  DB.departamentos = data;
+}
+async function cargarProvincias(deptoId){
+  if(DB.provinciasPorDepto[deptoId]) return DB.provinciasPorDepto[deptoId];
+  const { data, error } = await sb.from('ubigeo_provincias').select('id, nombre').eq('departamento_id', deptoId).order('nombre');
+  if(error){ console.error(error); return []; }
+  DB.provinciasPorDepto[deptoId] = data;
+  return data;
+}
+async function cargarDistritos(provId){
+  if(DB.distritosPorProv[provId]) return DB.distritosPorProv[provId];
+  const { data, error } = await sb.from('ubigeo_distritos').select('id, nombre').eq('provincia_id', provId).order('nombre');
+  if(error){ console.error(error); return []; }
+  DB.distritosPorProv[provId] = data;
+  return data;
+}
+async function cargarPreguntas(){
+  const { data, error } = await sb.from('preguntas_test').select('*').order('orden');
+  if(error){ console.error(error); return; }
+  DB.preguntas = data;
+}
+async function cargarFamiliasYDetalle(){
+  const { data, error } = await sb.from('carrera_familias').select('id, nombre, pesos');
+  if(error){ console.error(error); return; }
+  DB.familias = data;
+  const { data: detalles } = await sb.from('carrera_detalle').select('*');
+  (detalles||[]).forEach(d=>{ DB.detallePorFamilia[d.carrera_familia_id] = d; });
+}
+async function buscarColegiosPorDistrito(distId){
+  if(!distId) return [];
+  const { data } = await sb.from('colegios').select('nombre').eq('distrito_id', distId).order('nombre').limit(20);
+  return (data||[]).map(c=>c.nombre);
+}
+async function guardarColegioSiNoExiste(nombre, distId){
+  if(!nombre || !distId) return;
+  await sb.from('colegios').upsert({ nombre, distrito_id: distId }, { onConflict:'distrito_id,nombre' });
+}
+// Escapa los caracteres especiales de ILIKE (%, _) para que el texto que
+// escribe el usuario se busque literalmente y no como patrón.
+function escapeIlike(term){
+  return term.replace(/[%_]/g, m => '\\' + m);
+}
+// Autocompletado real contra las carreras reales cargadas desde el xlsx de universidades
+async function buscarCarrerasAutocomplete(term){
+  if(!term || term.length<2) return [];
+  const safeTerm = escapeIlike(term);
+  const { data, error } = await sb
+    .from('carrera_nombres')
+    .select('id, nombre, familia_id')
+    .ilike('nombre', `%${safeTerm}%`)
+    .order('nombre')
+    .limit(8);
+  if(error){ console.error(error); return []; }
+  return data;
+}
+
+/* ===================== NAVEGACIÓN ===================== */
+function goTo(step){
+  document.querySelectorAll('.screen').forEach(s=>s.classList.remove('show'));
+  document.getElementById('screen-'+step).classList.add('show');
+  state.step = step;
+  document.getElementById('railWrap').style.display = step===0 ? 'none' : 'block';
+  renderRail();
+  window.scrollTo({top:0, behavior:'smooth'});
+  if(step===2){ renderQuestion(true); }
+  if(step===3) renderPasoFuturo();
+  if(step===4) renderMatch();
+  if(step===5) renderRealidad();
+  if(step===6) renderInstituciones();
+  if(step===7) document.getElementById('gateNombre').textContent = `¡Excelente elección, ${state.nombre||'amig@'}!`;
+  if(step===8){ renderPlanFinal(); guardarRespuestaEnBD(); }
+}
+function renderRail(){
+  const rail = document.getElementById('rail');
+  rail.innerHTML='';
+  const total = 8;
+  for(let i=1;i<=total;i++){
+    const n = document.createElement('div');
+    n.className='node' + (i<state.step?' active':'') + (i===state.step?' current':'');
+    rail.appendChild(n);
+    if(i<total){
+      const seg = document.createElement('div');
+      seg.className='seg' + (i<state.step?' active':'');
+      rail.appendChild(seg);
+    }
+  }
+  document.getElementById('railStepLabel').textContent = `Paso ${Math.max(state.step,1)} / 8`;
+  document.getElementById('railNameLabel').textContent = STEP_NAMES[state.step] || '';
+}
+
+/* ===================== PANTALLA 1: PERFIL ===================== */
+function buildEdadChips(){
+  const wrap = document.getElementById('grpEdad');
+  for(let e=13;e<=22;e++){
+    const c = document.createElement('div');
+    c.className='chip'; c.textContent=e; c.dataset.val=e;
+    wrap.appendChild(c);
+  }
+}
+buildEdadChips();
+function setupChipGroup(id, key){
+  document.querySelectorAll('#'+id+' .chip').forEach(chip=>{
+    chip.addEventListener('click', ()=>{
+      play('select');
+      document.querySelectorAll('#'+id+' .chip').forEach(c=>c.classList.remove('selected'));
+      chip.classList.add('selected');
+      state[key] = chip.dataset.val;
+    });
+  });
+}
+setupChipGroup('grpEdad','edad');
+setupChipGroup('grpSexo','sexo');
+
+function fillSelect(sel, options, placeholder, valueKey='id', labelKey='nombre'){
+  sel.innerHTML = `<option value="">${escapeHtml(placeholder)}</option>` + options.map(o=>`<option value="${escapeHtml(o[valueKey])}">${escapeHtml(o[labelKey])}</option>`).join('');
+}
+const selDepto = document.getElementById('selDepto');
+const selProv = document.getElementById('selProv');
+const selDist = document.getElementById('selDist');
+
+async function initUbigeoPerfil(){
+  await cargarUbigeoBase();
+  fillSelect(selDepto, DB.departamentos, 'Departamento');
+}
+selDepto.addEventListener('change', async ()=>{
+  play('select');
+  state.deptoId = selDepto.value || null;
+  state.depto = selDepto.selectedOptions[0]?.textContent || '';
+  state.provId=null; state.prov=''; state.distId=null; state.dist='';
+  document.getElementById('inDistOtro').style.display='none';
+  selDist.disabled=true; selDist.innerHTML='<option value="">Distrito</option>';
+  if(state.deptoId){
+    selProv.innerHTML='<option value="">Cargando…</option>'; selProv.disabled=true;
+    const provs = await cargarProvincias(state.deptoId);
+    fillSelect(selProv, provs, 'Provincia');
+    selProv.disabled=false;
+  } else { selProv.disabled=true; selProv.innerHTML='<option value="">Provincia</option>'; }
+});
+selProv.addEventListener('change', async ()=>{
+  play('select');
+  state.provId = selProv.value || null;
+  state.prov = selProv.selectedOptions[0]?.textContent || '';
+  state.distId=null; state.dist='';
+  document.getElementById('inDistOtro').style.display='none';
+  if(state.provId){
+    selDist.innerHTML='<option value="">Cargando…</option>'; selDist.disabled=true;
+    const dists = await cargarDistritos(state.provId);
+    fillSelect(selDist, dists, 'Distrito');
+    const otroOpt = document.createElement('option');
+    otroOpt.value = '__otro__'; otroOpt.textContent='Otro distrito (escribirlo)';
+    selDist.appendChild(otroOpt);
+    selDist.disabled=false;
+  } else { selDist.disabled=true; selDist.innerHTML='<option value="">Distrito</option>'; }
+});
+selDist.addEventListener('change', async ()=>{
+  play('select');
+  const otroInput = document.getElementById('inDistOtro');
+  if(selDist.value==='__otro__'){
+    otroInput.style.display='block'; otroInput.value=''; state.distId=null; state.dist=''; otroInput.focus();
+  } else {
+    otroInput.style.display='none';
+    state.distId = selDist.value || null;
+    state.dist = selDist.selectedOptions[0]?.textContent || '';
+  }
+  await refreshColegiosList();
+});
+document.getElementById('inDistOtro').addEventListener('input', (e)=>{ state.dist = e.target.value.trim(); });
+async function refreshColegiosList(){
+  const lista = await buscarColegiosPorDistrito(state.distId);
+  const datalist = document.getElementById('colegiosList');
+  datalist.innerHTML='';
+  lista.forEach(c=>{ const o=document.createElement('option'); o.value=c; datalist.appendChild(o); });
+  const hint = document.getElementById('colegioHint');
+  hint.textContent = lista.length ? `${lista.length} colegio(s) sugeridos para ${state.dist}.`
+    : state.dist ? `No tenemos colegios registrados de ${state.dist} todavía — escribe el tuyo y quedará guardado.` : '';
+}
+document.getElementById('inColegio').addEventListener('blur', (e)=>{
+  const nombre = e.target.value.trim();
+  if(nombre) guardarColegioSiNoExiste(nombre, state.distId);
+});
+
+document.getElementById('selSituacion').addEventListener('change', (e)=>{
+  play('select');
+  state.situacion = e.target.value;
+  document.getElementById('bloqueColegio').style.display = (state.situacion==='colegio') ? 'flex' : 'none';
+});
+
+function validateAndGo(next){
+  if(state.step===1){
+    state.nombre = document.getElementById('inNombre').value.trim();
+    state.apellido = document.getElementById('inApellido').value.trim();
+    state.grado = document.getElementById('selGrado') ? document.getElementById('selGrado').value : '';
+    state.colegio = document.getElementById('inColegio') ? document.getElementById('inColegio').value.trim() : '';
+    if(!state.nombre || !state.edad || !state.deptoId || (!state.distId && !state.dist) || !state.situacion){
+      play('error'); toast('Completa los campos marcados antes de continuar.', true); return;
+    }
+    if(state.situacion==='colegio' && (!state.grado || !state.colegio)){
+      play('error'); toast('Cuéntanos tu grado y colegio para continuar.', true); return;
+    }
+  }
+  if(state.step===3){
+    if(!state.destino || !state.presupuestoCat){ play('error'); toast('Elige destino y presupuesto.', true); return; }
+    if(state.presupuestoCat==='otro' && (!state.presupuestoMonto || state.presupuestoMonto<=0)){
+      play('error'); toast('Escribe un monto válido para tu presupuesto.', true); return;
+    }
+  }
+  if(state.step===6){
+    if(!state.institucionElegida){ play('error'); toast('Selecciona una institución.', true); return; }
+  }
+  goTo(next);
+}
+
+/* ===================== PANTALLA 2: PREGUNTAS CON TRANSICIÓN ===================== */
+const OPCIONES_5 = [
+  {label:"Nada, no me identifica", val:0},
+  {label:"Poco", val:25},
+  {label:"Algo, depende", val:50},
+  {label:"Bastante", val:75},
+  {label:"Mucho, me encanta", val:100},
+];
+let qIndex = 0;
+
+function renderQuestion(instant, dir){
+  const total = DB.preguntas.length || 1;
+  const p = DB.preguntas[qIndex] || {titulo:'Cargando…', subtitulo:''};
+  const card = document.getElementById('qCard');
+  const opts = document.getElementById('qOptions');
+
+  const paint = ()=>{
+    document.getElementById('qCounter').textContent = `Pregunta ${qIndex+1} de ${total}`;
+    document.getElementById('qTitle').textContent = p.titulo;
+    document.getElementById('qSubtitle').textContent = p.subtitulo;
+    const mini = document.getElementById('qProgressMini');
+    mini.innerHTML = DB.preguntas.map((_,i)=>`<span class="${i<qIndex?'done':''}"></span>`).join('');
+    opts.innerHTML='';
+    OPCIONES_5.forEach(o=>{
+      const div = document.createElement('div');
+      div.className='q-opt';
+      const selectedNow = state.hobbies[p.clave]===o.val;
+      if(selectedNow) div.classList.add('selected');
+      div.innerHTML = `<span>${escapeHtml(o.label)}</span><span class="qval">${o.val}%</span>`;
+      div.onclick = ()=>{
+        play('select');
+        state.hobbies[p.clave] = o.val;
+        if(qIndex < total-1){ qIndex++; renderQuestion(false,'next'); }
+        else { goTo(3); }
+      };
+      opts.appendChild(div);
+    });
+    card.classList.remove('q-slide-out-left','q-slide-out-right','q-slide-in');
+    opts.classList.remove('q-slide-out-left','q-slide-out-right','q-slide-in');
+  };
+
+  if(instant || !dir){ paint(); return; }
+  const outClass = dir==='next' ? 'q-slide-out-left' : 'q-slide-out-right';
+  card.classList.add(outClass); opts.classList.add(outClass);
+  setTimeout(()=>{
+    paint();
+    card.classList.add('q-slide-in'); opts.classList.add('q-slide-in');
+    requestAnimationFrame(()=>{
+      requestAnimationFrame(()=>{
+        card.classList.remove('q-slide-in'); opts.classList.remove('q-slide-in');
+      });
+    });
+  }, 220);
+}
+function prevQuestion(){
+  if(qIndex>0){ qIndex--; renderQuestion(false,'prev'); }
+  else { goTo(1); }
+}
+
+/* ===================== PANTALLA 3: FUTURO + AUTOCOMPLETADO DE CARRERA ===================== */
+async function renderPasoFuturo(){
+  const sel = document.getElementById('selDestino');
+  fillSelect(sel, DB.departamentos, 'Selecciona un departamento');
+  if(state.destinoTouched && state.destinoId){
+    sel.value = state.destinoId;
+  } else if(state.deptoId){
+    sel.value = state.deptoId;
+  }
+  state.destinoId = sel.value || null;
+  state.destino = sel.selectedOptions[0]?.textContent || '';
+  sel.onchange = async ()=>{
+    play('select');
+    state.destinoTouched = true;
+    state.destinoId = sel.value || null;
+    state.destino = sel.selectedOptions[0]?.textContent || '';
+    state.destinoProvId=null; state.destinoProv='';
+    await fillProvDestino();
+  };
+  await fillProvDestino();
+
+  document.querySelectorAll('#grpPresupuesto .radio-card').forEach(card=>{
+    card.classList.toggle('selected', card.dataset.val===state.presupuestoCat);
+    card.onclick = ()=>{
+      play('select');
+      document.querySelectorAll('#grpPresupuesto .radio-card').forEach(c=>c.classList.remove('selected'));
+      card.classList.add('selected');
+      state.presupuestoCat = card.dataset.val;
+      const otro = document.getElementById('inPresupuestoOtro');
+      otro.style.display = (state.presupuestoCat==='otro') ? 'block' : 'none';
+      if(state.presupuestoCat==='otro') otro.focus();
+    };
+  });
+  const otroInput = document.getElementById('inPresupuestoOtro');
+  otroInput.style.display = (state.presupuestoCat==='otro') ? 'block' : 'none';
+  otroInput.value = state.presupuestoMonto || '';
+  otroInput.oninput = ()=>{ state.presupuestoMonto = +otroInput.value || null; };
+}
+async function fillProvDestino(){
+  const selP = document.getElementById('selProvDestino');
+  if(state.destinoId){
+    selP.innerHTML='<option value="">Cargando…</option>'; selP.disabled=true;
+    const provs = await cargarProvincias(state.destinoId);
+    fillSelect(selP, provs, 'Selecciona una provincia');
+    if(state.destinoProvId) selP.value = state.destinoProvId;
+    state.destinoProvId = selP.value || null;
+    state.destinoProv = selP.selectedOptions[0]?.textContent || '';
+    selP.disabled=false;
+    selP.onchange = ()=>{
+      play('select');
+      state.destinoProvId = selP.value || null;
+      state.destinoProv = selP.selectedOptions[0]?.textContent || '';
+    };
+  } else {
+    selP.disabled=true; selP.innerHTML='<option value="">Primero elige un departamento</option>';
+  }
+}
+
+// ---- Autocompletado que va reduciendo opciones mientras el usuario escribe ----
+const inCarrera = document.getElementById('inCarreraDeseada');
+const acBox = document.getElementById('acCarreras');
+let acTimer=null, acIndex=-1, acItemsCache=[], acRequestId=0;
+
+function highlight(nombre, term){
+  const i = nombre.toLowerCase().indexOf(term.toLowerCase());
+  if(i<0) return escapeHtml(nombre);
+  return escapeHtml(nombre.slice(0,i)) + '<mark>' + escapeHtml(nombre.slice(i,i+term.length)) + '</mark>' + escapeHtml(nombre.slice(i+term.length));
+}
+inCarrera.addEventListener('input', ()=>{
+  play('type');
+  state.carreraDeseada = inCarrera.value.trim();
+  state.carreraDeseadaFamiliaId = null;
+  clearTimeout(acTimer);
+  const term = state.carreraDeseada;
+  if(term.length<2){ acBox.classList.remove('show'); acBox.innerHTML=''; return; }
+  acBox.innerHTML = '<div class="loading-row"><span class="spinner-mini"></span>Buscando carreras…</div>';
+  acBox.classList.add('show');
+  const myRequestId = ++acRequestId;
+  acTimer = setTimeout(async ()=>{
+    const results = await buscarCarrerasAutocomplete(term);
+    if(myRequestId !== acRequestId) return;
+    acItemsCache = results; acIndex=-1;
+    if(!results.length){ acBox.innerHTML = `<div class="ac-empty">Sin coincidencias — puedes escribir el nombre igual, lo tomamos en cuenta.</div>`; return; }
+    acBox.innerHTML = results.map((r,i)=>`<div class="ac-item" data-i="${i}">${highlight(r.nombre, term)}</div>`).join('');
+    acBox.querySelectorAll('.ac-item').forEach(el=>{
+      el.addEventListener('click', ()=>{
+        play('select');
+        const r = acItemsCache[+el.dataset.i];
+        inCarrera.value = r.nombre;
+        state.carreraDeseada = r.nombre;
+        state.carreraDeseadaFamiliaId = r.familia_id;
+        acBox.classList.remove('show'); acBox.innerHTML='';
+      });
+    });
+  }, 220);
+});
+inCarrera.addEventListener('keydown', (e)=>{
+  const items = acBox.querySelectorAll('.ac-item');
+  if(!items.length) return;
+  if(e.key==='ArrowDown'){ e.preventDefault(); acIndex=Math.min(acIndex+1, items.length-1); updateAcHover(items); play('tap'); }
+  if(e.key==='ArrowUp'){ e.preventDefault(); acIndex=Math.max(acIndex-1,0); updateAcHover(items); play('tap'); }
+  if(e.key==='Enter' && acIndex>=0){ e.preventDefault(); items[acIndex].click(); }
+  if(e.key==='Escape'){ acBox.classList.remove('show'); }
+});
+function updateAcHover(items){ items.forEach((it,i)=>it.classList.toggle('hover', i===acIndex)); items[acIndex]?.scrollIntoView({block:'nearest'}); }
+document.addEventListener('click', (e)=>{ if(!acBox.contains(e.target) && e.target!==inCarrera){ acBox.classList.remove('show'); } });
+
+/* ===================== LÓGICA DE MATCH (determinística, sobre familias reales de Supabase) ===================== */
+function computeMatches(){
+  const h = state.hobbies;
+  const scores = {};
+  DB.familias.forEach(fam=>{
+    let raw=0, maxRaw=0;
+    Object.entries(fam.pesos||{}).forEach(([key,peso])=>{
+      raw += (h[key]||0)*peso;
+      maxRaw += 100*peso;
+    });
+    scores[fam.id] = { nombre:fam.nombre, pct: maxRaw>0 ? Math.round((raw/maxRaw)*100) : 0 };
+  });
+  return Object.entries(scores).map(([id,v])=>({id:+id, ...v})).sort((a,b)=>b.pct-a.pct);
+}
+function renderMatch(){
+  const ranked = computeMatches();
+  let principal;
+  if(state.carreraDeseada && state.carreraDeseadaFamiliaId){
+    principal = ranked.find(r=>r.id===state.carreraDeseadaFamiliaId) || {nombre:state.carreraDeseada, pct:null, id:null};
+  } else if(state.carreraDeseada){
+    principal = {nombre: state.carreraDeseada, pct:null, id:null};
+  } else if(ranked.length){
+    principal = ranked[0];
+  } else {
+    principal = {nombre:'Explora tus opciones', pct:null, id:null};
+  }
+  state.carreraElegida = principal.nombre;
+  state.carreraElegidaFamiliaId = principal.id;
+
+  document.getElementById('matchSub').textContent = state.carreraDeseada
+    ? "La carrera que tenías en mente es una excelente opción para ti"
+    : "Es la opción con mayor afinidad según tus respuestas";
+  document.getElementById('matchCarrera').textContent = principal.nombre;
+  document.getElementById('matchCode').textContent = principal.id ? 'Match calculado por tu test' : 'Personalizado';
+
+  const barRow = document.getElementById('matchBarPrincipal').parentElement.parentElement;
+  if(principal.pct===null || principal.pct===undefined){ barRow.style.display='none'; }
+  else{
+    barRow.style.display='flex';
+    document.getElementById('matchBarPrincipal').style.width = principal.pct+'%';
+    document.getElementById('matchPctPrincipal').textContent = principal.pct+'%';
+  }
+
+  const alternativas = ranked.filter(r=>r.id!==principal.id).slice(0,3);
+  const wrap = document.getElementById('alternativas');
+  wrap.innerHTML='';
+  alternativas.forEach(alt=>{
+    const card = document.createElement('div');
+    card.className='cardbox';
+    card.innerHTML = `<h4>${escapeHtml(alt.nombre)}</h4><p>Afinidad calculada con tus respuestas</p>
+      <div class="match-bar-row" style="margin-top:8px;"><span class="mono">${alt.pct}%</span><div class="match-bar"><div style="width:${alt.pct}%;"></div></div></div>`;
+    card.onclick = ()=>{
+      play('select');
+      document.querySelectorAll('#alternativas .cardbox').forEach(c2=>c2.classList.remove('selected'));
+      card.classList.add('selected');
+      state.carreraElegida = alt.nombre; state.carreraElegidaFamiliaId = alt.id;
+      state.carreraDeseada = '';
+      document.getElementById('matchCarrera').textContent = alt.nombre;
+      document.getElementById('matchCode').textContent = 'Match calculado por tu test';
+      document.getElementById('btnP4').disabled=false;
+    };
+    wrap.appendChild(card);
+  });
+  document.getElementById('btnP4').disabled = !state.carreraElegida;
+}
+
+/* ===================== PANTALLA 5: REALIDAD (leída de carrera_detalle, actualizada por Gemini) ===================== */
+function renderRealidad(){
+  document.getElementById('carreraNombre5').textContent = state.carreraElegida;
+  const detalle = state.carreraElegidaFamiliaId ? DB.detallePorFamilia[state.carreraElegidaFamiliaId] : null;
+  if(!detalle){
+    document.getElementById('carreraDesc5').textContent = "Aún no tenemos el detalle actualizado de esta carrera en la base de datos — nuestro sistema con IA lo generará pronto. Mientras tanto, revisa las instituciones disponibles en el siguiente paso.";
+    document.getElementById('sueldoJunior').textContent = 'S/. —';
+    document.getElementById('sueldoSenior').textContent = 'S/. —';
+    document.getElementById('demandaBar').style.width='50%';
+    document.getElementById('demandaTxt').textContent = 'Nivel: No disponible';
+    document.getElementById('ambitos').innerHTML = '<li>Te recomendamos investigar mallas curriculares específicas en las instituciones del siguiente paso.</li>';
+    document.getElementById('cursosClave').innerHTML='';
+    document.getElementById('modalidadTags').innerHTML='';
+    document.getElementById('fuenteDatos5').textContent='';
+    return;
+  }
+  document.getElementById('carreraDesc5').textContent = detalle.descripcion || '';
+  document.getElementById('sueldoJunior').textContent = 'S/. '+Number(detalle.sueldo_junior||0).toLocaleString('es-PE');
+  document.getElementById('sueldoSenior').textContent = 'S/. '+Number(detalle.sueldo_senior||0).toLocaleString('es-PE');
+  const demandaNorm = (detalle.demanda||'').trim().toLowerCase();
+  const pct = demandaNorm==='alto' ? 90 : demandaNorm==='medio' ? 55 : demandaNorm==='bajo' ? 25 : 50;
+  document.getElementById('demandaBar').style.width = pct+'%';
+  document.getElementById('demandaTxt').textContent = `Nivel: ${detalle.demanda||'No disponible'}`;
+  document.getElementById('ambitos').innerHTML = (detalle.ambitos||[]).map(a=>`<li>${escapeHtml(a)}</li>`).join('');
+  document.getElementById('cursosClave').innerHTML = (detalle.cursos||[]).map(t=>`<span class="tag">${escapeHtml(t)}</span>`).join('');
+  document.getElementById('modalidadTags').innerHTML = (detalle.modalidad||[]).map(t=>`<span class="tag">${escapeHtml(t)}</span>`).join('');
+  const fechaValida = detalle.actualizado_en && !isNaN(new Date(detalle.actualizado_en).getTime());
+  document.getElementById('fuenteDatos5').textContent = fechaValida
+    ? `Datos actualizados con IA · ${new Date(detalle.actualizado_en).toLocaleDateString('es-PE')}`
+    : 'Datos generados con IA';
+}
+
+/* ===================== PANTALLA 6: INSTITUCIONES ===================== */
+async function renderInstituciones(){
+  const carrera = state.carreraElegida;
+  document.getElementById('carreraNombre6').textContent = carrera;
+  document.getElementById('destinoNombre6').textContent = state.destinoProv ? `${state.destinoProv}, ${state.destino}` : state.destino;
+
+  let montoMax = 99999;
+  if(state.presupuestoCat==='0') montoMax=0;
+  else if(state.presupuestoCat==='300-800') montoMax=800;
+  else if(state.presupuestoCat==='800-1500') montoMax=1500;
+  else if(state.presupuestoCat==='1500+') montoMax=99999;
+  else if(state.presupuestoCat==='otro') montoMax = state.presupuestoMonto||0;
+
+  const wrap = document.getElementById('instituciones');
+  wrap.innerHTML = '<div class="loading-row"><span class="spinner-mini"></span>Buscando instituciones reales en tu zona…</div>';
+  state.institucionElegida=null;
+  document.getElementById('btnP6').disabled=true;
+
+  let resultado = { institutos:[], universidades:[] };
+  try{
+    const res = await fetch(EDGE_FN_BUSCAR_INSTITUCIONES, {
+      method:'POST',
+      headers:{ 'Content-Type':'application/json', 'Authorization':`Bearer ${SUPABASE_ANON_KEY}` },
+      body: JSON.stringify({ carrera, departamento: state.destino, provincia: state.destinoProv, presupuestoMax: montoMax })
+    });
+    if(!res.ok) throw new Error('HTTP '+res.status);
+    resultado = await res.json();
+  } catch(e){
+    console.error(e);
+    toast('No se pudo consultar instituciones en este momento.', true);
+  }
+
+  const institutos = (resultado.institutos||[]).filter(i => (i.costo_min ?? 0) <= montoMax);
+  const universidades = (resultado.universidades||[]).filter(u => (u.costo_min ?? 0) <= montoMax);
+
+  document.getElementById('instFiltroNota').textContent =
+    `${institutos.length} instituto(s) verificados en nuestra base + ${universidades.length} universidad(es) sugeridas por IA para esta búsqueda.`;
+
+  wrap.innerHTML='';
+  if(institutos.length===0 && universidades.length===0){
+    wrap.innerHTML = `<p class="sub">No encontramos instituciones que ofrezcan ${escapeHtml(carrera)} en ${escapeHtml(state.destino)} dentro de tu presupuesto. Prueba ampliando tu rango o eligiendo otro departamento en el paso anterior.</p>`;
+    return;
+  }
+
+  const crearCard = (nombre, provincia, tipo, gestion, costoMin, costoMax, fuente)=>{
+    const card = document.createElement('div');
+    card.className='cardbox';
+    const costoTxt = (costoMin===0 && costoMax===0) ? 'Gratuita (pública)' : `S/. ${costoMin} – S/. ${costoMax>=99999?'1500+':costoMax}`;
+    card.innerHTML = `<h4>${escapeHtml(nombre)}</h4><p>${escapeHtml(provincia||'')}${provincia?', ':''}${escapeHtml(state.destino)} · ${costoTxt}</p>
+      <div class="inst-meta">
+        <span class="badge ${gestion==='Publico'?'pub':'priv'}">${escapeHtml(tipo)}</span>
+        ${provincia===state.destinoProv ? '<span class="badge pub">En tu provincia</span>' : ''}
+        ${fuente==='ia' ? '<span class="badge ia">Verificado por IA</span>' : ''}
+      </div>`;
+    card.onclick = ()=>{
+      play('select');
+      document.querySelectorAll('#instituciones .cardbox').forEach(c2=>c2.classList.remove('selected'));
+      card.classList.add('selected');
+      state.institucionElegida = nombre;
+      document.getElementById('btnP6').disabled=false;
+    };
+    return card;
+  };
+
+  institutos.forEach(i=>{
+    wrap.appendChild(crearCard(i.nombre, i.ubigeo_provincias?.nombre, 'Instituto', i.gestion, i.costo_min, i.costo_max, 'db'));
+  });
+  universidades.forEach(u=>{
+    wrap.appendChild(crearCard(u.nombre, u.provincia, 'Universidad', u.gestion, u.costo_min, u.costo_max, 'ia'));
+  });
+}
+
+/* ===================== PANTALLA 8: PLAN FINAL ===================== */
+function renderPlanFinal(){
+  document.getElementById('planTitulo').textContent =
+    `¡Felicidades, ${state.nombre||'amig@'}! Aquí tienes tu hoja de ruta para estudiar ${state.carreraElegida} en ${state.institucionElegida}.`;
+
+  document.getElementById('paso1Txt').textContent =
+    state.situacion==='colegio'
+      ? `Repasa con prioridad razonamiento matemático y comprensión lectora — son la base del examen de admisión de ${state.institucionElegida}. Dedica 45 min diarios este mes.`
+      : `Revisa el temario de admisión de ${state.institucionElegida} y refuerza las áreas donde te sientas menos seguro antes de postular.`;
+
+  const seQueda = (state.destino===state.depto);
+  document.getElementById('paso2Txt').textContent = seQueda
+    ? `Como te quedarás en ${state.depto}, aprovecha tu red local: visita la institución, habla con estudiantes actuales y planifica tu horario de estudio en casa.`
+    : `Te mudarás a ${state.destino} para estudiar. A tu edad (${state.edad} años) es clave que organices alojamiento y presupuesto con tu familia con al menos 2 meses de anticipación.`;
+
+  const detalle = state.carreraElegidaFamiliaId ? DB.detallePorFamilia[state.carreraElegidaFamiliaId] : null;
+  document.getElementById('paso3Txt').textContent = detalle && detalle.ambitos?.length
+    ? `Para ${state.carreraElegida}, las áreas con mayor crecimiento en el Perú actual son: ${detalle.ambitos[0].toLowerCase()} y proyectos vinculados a transformación digital y sostenibilidad.`
+    : `Investiga con la institución elegida las áreas de mayor demanda actual para ${state.carreraElegida} en el mercado peruano.`;
+}
+
+/* ===================== INIT ===================== */
+(async function init(){
+  await Promise.all([initUbigeoPerfil(), cargarPreguntas(), cargarFamiliasYDetalle()]);
+
+  // Si el usuario vuelve de un login con Google, detectamos la sesión aquí
+  // y restauramos el `state` que guardamos en sessionStorage antes de redirigir.
+  try{
+    const { data: { session } } = await sb.auth.getSession();
+    if(session && session.user){
+      const savedState = sessionStorage.getItem('diodo_state');
+      const savedNextStep = sessionStorage.getItem('diodo_next_step');
+      const savedQIndex = sessionStorage.getItem('diodo_qIndex');
+
+      if(savedState){
+        try{
+          const parsed = JSON.parse(savedState);
+          Object.assign(state, parsed);
+        }catch(e){ console.error('No se pudo restaurar el estado guardado:', e); }
+        if(savedQIndex) qIndex = Number(savedQIndex) || 0;
+        sessionStorage.removeItem('diodo_state');
+        sessionStorage.removeItem('diodo_next_step');
+        sessionStorage.removeItem('diodo_qIndex');
+      }
+
+      state.guest = false;
+      state.nombre = state.nombre || session.user.user_metadata?.given_name || session.user.user_metadata?.full_name || '';
+
+      const destino = savedNextStep ? Number(savedNextStep) : 1;
+      goTo(destino);
+      return;
+    }
+  }catch(e){ console.error(e); }
+
+  goTo(0);
+})();
+</script>
+</body>
+</html>SA
