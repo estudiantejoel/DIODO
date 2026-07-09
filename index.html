@@ -84,8 +84,8 @@ select:disabled, input:disabled{opacity:.4; cursor:not-allowed;}
 .q-opt.selected{border-color:var(--diode); background:rgba(255,122,48,.10); box-shadow:0 0 0 1px var(--diode); padding-left:34px;}
 .q-opt.selected::before{content:"✓"; position:absolute; left:14px; top:50%; transform:translateY(-50%); width:16px; height:16px; border-radius:50%; background:var(--diode); color:#1A0E05; font-size:10px; font-weight:700; display:flex; align-items:center; justify-content:center;}
 .q-opt.selected .qval{color:var(--diode-glow); font-weight:600;}
-.q-progress-mini{display:flex; gap:5px;}
-.q-progress-mini span{width:18px; height:4px; border-radius:3px; background:var(--line); transition:background .3s var(--ease);}
+.q-progress-mini{display:flex; gap:5px; flex-wrap:wrap;}
+.q-progress-mini span{width:14px; height:4px; border-radius:3px; background:var(--line); transition:background .3s var(--ease);}
 .q-progress-mini span.done{background:var(--diode);}
 .q-slide-out-left{opacity:0; transform:translateX(-24px);}
 .q-slide-out-right{opacity:0; transform:translateX(24px);}
@@ -103,6 +103,7 @@ select:disabled, input:disabled{opacity:.4; cursor:not-allowed;}
 .bullets li::before{content:"›"; position:absolute; left:0; color:var(--diode); font-weight:700;}
 .tag-row{display:flex; flex-wrap:wrap; gap:8px;}
 .tag{font-size:12px; background:var(--surface-2); border:1px solid var(--line); padding:6px 11px; border-radius:20px; color:var(--text-dim);}
+.tag.trait{color:var(--diode-glow); border-color:rgba(255,176,102,.4);}
 
 .btn-primary{width:100%; background:linear-gradient(135deg,var(--diode),#E0571A); color:#1A0E05; border:none; padding:16px; border-radius:14px; font-size:15px; font-weight:700; font-family:'Space Grotesk',sans-serif; cursor:pointer; transition:transform .15s var(--ease), box-shadow .15s var(--ease); box-shadow:0 6px 20px rgba(255,122,48,.28);}
 .btn-primary:hover{transform:translateY(-1px);}
@@ -257,7 +258,7 @@ select:disabled, input:disabled{opacity:.4; cursor:not-allowed;}
           </div>
           <div class="gate-step">
             <div class="gs-num">2</div>
-            <div><h4>Responde sobre ti</h4><p>Seis preguntas rápidas sobre lo que de verdad te mueve.</p></div>
+            <div><h4>Responde sobre ti</h4><p>Preguntas cortas y sencillas sobre lo que de verdad te mueve.</p></div>
           </div>
           <div class="gate-step">
             <div class="gs-num">3</div>
@@ -405,6 +406,8 @@ select:disabled, input:disabled{opacity:.4; cursor:not-allowed;}
       <div class="match-bar-row" style="margin-top:14px;">
         <span class="mono">Afinidad</span><div class="match-bar"><div id="matchBarPrincipal" style="width:0%;"></div></div><span class="mono" id="matchPctPrincipal">0%</span>
       </div>
+      <div class="tag-row" id="matchRasgos" style="margin-top:14px; justify-content:center;"></div>
+      <p class="sub" id="matchConfianza" style="margin-top:8px; font-size:11.5px;"></p>
     </div>
 
     <p class="sub">También harías un buen "match" con estas opciones, ordenadas por afinidad real con tus respuestas. Puedes elegir otra si prefieres:</p>
@@ -723,10 +726,63 @@ async function cargarDistritos(provId){
   DB.distritosPorProv[provId] = data;
   return data;
 }
+// Preguntas psicométricas adicionales (modelo RIASEC, con varias preguntas
+// situacionales cortas por rasgo en vez de una sola pregunta abstracta) que
+// se suman SIEMPRE a las preguntas que existan en Supabase. La idea es tener
+// más señal por rasgo — varias preguntas cortas y concretas miden mejor que
+// una sola pregunta larga, y además reducen el ruido de una sola respuesta
+// "al voleo". Si en el futuro agregas preguntas a Supabase con estas mismas
+// claves, las tuyas tienen prioridad y estas no se duplican.
+//
+// Convención de claves: las preguntas de un mismo rasgo comparten el mismo
+// prefijo y terminan en _1, _2, _3... (ej. riasec_realista_1). Al calcular
+// el match, todas las respuestas de un mismo rasgo se promedian entre sí
+// (ver getTraitScores), así que puedes agregar o quitar preguntas de un
+// rasgo sin tocar el resto del código.
+const PREGUNTAS_EXTRA = [
+  // Realista: manos a la obra, técnico, físico
+  { clave:'riasec_realista_1', titulo:'Manos a la obra', subtitulo:'Prefiero arreglar algo con mis manos antes que solo leer cómo se hace.' },
+  { clave:'riasec_realista_2', titulo:'Manos a la obra', subtitulo:'Me gusta trabajar con herramientas, máquinas o equipos.' },
+  { clave:'riasec_realista_3', titulo:'Manos a la obra', subtitulo:'Prefiero estar en movimiento o al aire libre antes que sentado en una oficina.' },
+
+  // Investigador: análisis, curiosidad, lógica
+  { clave:'riasec_investigador_1', titulo:'Curiosidad y análisis', subtitulo:'Me gusta entender por qué las cosas funcionan como funcionan.' },
+  { clave:'riasec_investigador_2', titulo:'Curiosidad y análisis', subtitulo:'Disfruto resolver acertijos, problemas lógicos o rompecabezas.' },
+  { clave:'riasec_investigador_3', titulo:'Curiosidad y análisis', subtitulo:'Prefiero investigar a fondo un tema antes de opinar sobre él.' },
+
+  // Artístico: creatividad, expresión
+  { clave:'riasec_artistico_1', titulo:'Creatividad', subtitulo:'Me gusta crear cosas originales: dibujos, textos, música o diseños.' },
+  { clave:'riasec_artistico_2', titulo:'Creatividad', subtitulo:'Prefiero tareas donde me pueda expresar libremente, sin reglas fijas.' },
+  { clave:'riasec_artistico_3', titulo:'Creatividad', subtitulo:'Disfruto imaginar ideas nuevas más que seguir instrucciones exactas.' },
+
+  // Social: ayudar, enseñar, cuidar
+  { clave:'riasec_social_1', titulo:'Ayudar a otros', subtitulo:'Me gusta ayudar a otras personas a resolver sus problemas.' },
+  { clave:'riasec_social_2', titulo:'Ayudar a otros', subtitulo:'Disfruto explicarle algo a alguien hasta que lo entienda.' },
+  { clave:'riasec_social_3', titulo:'Ayudar a otros', subtitulo:'Me preocupo genuinamente por el bienestar de las personas a mi alrededor.' },
+
+  // Emprendedor: liderar, persuadir, iniciar
+  { clave:'riasec_emprendedor_1', titulo:'Liderar e iniciar', subtitulo:'Me gusta convencer a otros de mis ideas.' },
+  { clave:'riasec_emprendedor_2', titulo:'Liderar e iniciar', subtitulo:'Disfruto tomar la iniciativa cuando nadie más lo hace.' },
+  { clave:'riasec_emprendedor_3', titulo:'Liderar e iniciar', subtitulo:'Me atrae la idea de tener mi propio negocio algún día.' },
+
+  // Convencional: orden, estructura, datos
+  { clave:'riasec_convencional_1', titulo:'Orden y estructura', subtitulo:'Me siento cómodo con reglas claras y tareas bien organizadas.' },
+  { clave:'riasec_convencional_2', titulo:'Orden y estructura', subtitulo:'Disfruto ordenar información, archivos o datos de forma precisa.' },
+  { clave:'riasec_convencional_3', titulo:'Orden y estructura', subtitulo:'Prefiero seguir un método probado antes que improvisar.' },
+
+  // Estilo de trabajo (no son RIASEC, pero afinan el match)
+  { clave:'estilo_equipo',     titulo:'Estilo de trabajo', subtitulo:'Prefiero trabajar en equipo, coordinando con otras personas, antes que trabajar solo.' },
+  { clave:'comodidad_numeros', titulo:'Estilo de trabajo', subtitulo:'Me siento cómodo usando matemáticas o números en mi día a día.' },
+  { clave:'autonomia',         titulo:'Estilo de trabajo', subtitulo:'Prefiero decidir yo mismo cómo hacer las cosas, sin que me digan paso a paso.' },
+  { clave:'variedad_rutina',   titulo:'Estilo de trabajo', subtitulo:'Prefiero un trabajo con tareas variadas antes que siempre la misma rutina.' },
+];
 async function cargarPreguntas(){
   const { data, error } = await sb.from('preguntas_test').select('*').order('orden');
-  if(error){ console.error(error); return; }
-  DB.preguntas = data;
+  if(error){ console.error('No se pudieron cargar preguntas de Supabase, se usarán solo las preguntas adicionales:', error); }
+  const base = data || [];
+  const clavesBase = new Set(base.map(p=>p.clave));
+  const extra = PREGUNTAS_EXTRA.filter(p => !clavesBase.has(p.clave));
+  DB.preguntas = [...base, ...extra];
 }
 async function cargarFamiliasYDetalle(){
   const { data, error } = await sb.from('carrera_familias').select('id, nombre, pesos');
@@ -747,7 +803,7 @@ async function guardarColegioSiNoExiste(nombre, distId){
 // Escapa los caracteres especiales de ILIKE (%, _) para que el texto que
 // escribe el usuario se busque literalmente y no como patrón.
 function escapeIlike(term){
-  return term.replace(/[%_]/g, m => '\\' + m);
+  return term.replace(/[%_\\]/g, m => '\\' + m);
 }
 // Autocompletado real contra las carreras reales cargadas desde el xlsx de universidades
 async function buscarCarrerasAutocomplete(term){
@@ -1051,7 +1107,12 @@ function highlight(nombre, term){
   return escapeHtml(nombre.slice(0,i)) + '<mark>' + escapeHtml(nombre.slice(i,i+term.length)) + '</mark>' + escapeHtml(nombre.slice(i+term.length));
 }
 function mostrarSugerenciasPorTest(){
-  const top = computeMatches().filter(r=>r.pct>0).slice(0,3);
+  const ranked = computeMatches();
+  // Con la escala nueva, 50% es "neutro"; solo mostramos sugerencias que
+  // superen claramente ese punto medio. Si ninguna lo supera (test recién
+  // empezado, poca señal), igual mostramos el top 3 para no dejar el campo vacío.
+  const destacadas = ranked.filter(r=>r.pct>55).slice(0,3);
+  const top = destacadas.length ? destacadas : ranked.slice(0,3);
   if(!top.length){ acBox.classList.remove('show'); acBox.innerHTML=''; return; }
   acItemsCache = top; acIndex=-1;
   acBox.innerHTML = '<div class="ac-suggest-label">Sugeridas según tus respuestas</div>' +
@@ -1107,31 +1168,192 @@ inCarrera.addEventListener('keydown', (e)=>{
 function updateAcHover(items){ items.forEach((it,i)=>it.classList.toggle('hover', i===acIndex)); items[acIndex]?.scrollIntoView({block:'nearest'}); }
 document.addEventListener('click', (e)=>{ if(!acBox.contains(e.target) && e.target!==inCarrera){ acBox.classList.remove('show'); } });
 
-/* ===================== LÓGICA DE MATCH (determinística, sobre familias reales de Supabase) ===================== */
-function computeMatches(){
-  const h = state.hobbies;
-  const scores = {};
-  DB.familias.forEach(fam=>{
-    let raw=0, maxRaw=0;
-    Object.entries(fam.pesos||{}).forEach(([key,peso])=>{
-      raw += (h[key]||0)*peso;
-      maxRaw += 100*peso;
-    });
-    scores[fam.id] = { nombre:fam.nombre, pct: maxRaw>0 ? Math.round((raw/maxRaw)*100) : 0 };
+/* ===================== LÓGICA DE MATCH (determinística, sobre familias reales de Supabase) =====================
+   Cambios clave respecto a la versión anterior:
+
+   1) AGRUPACIÓN POR RASGO: como ahora hay varias preguntas cortas por rasgo
+      (ej. riasec_realista_1, _2, _3), primero se promedian entre sí
+      (getTraitScores) para obtener un solo puntaje por rasgo. Esto reduce el
+      ruido de una sola respuesta y hace el perfil más estable.
+
+   2) PESOS DE RESPALDO EXPLÍCITOS: si una familia de Supabase no tiene pesos
+      configurados, en vez de adivinarlos con una regex sobre el nombre
+      (frágil: "Ingeniería X" e "Ingeniería Y" recibían el mismo peso), se
+      busca en un diccionario PESOS_RESPALDO con el nombre normalizado de la
+      familia. Es una tabla explícita y editable — lo ideal a futuro es
+      migrarla a la columna `pesos` de `carrera_familias` en Supabase.
+
+   3) SIMILITUD DE COSENO + CONFIANZA: se sigue usando similitud de coseno
+      entre el vector de rasgos del usuario y los pesos de la familia, pero
+      ahora también se calcula una "confianza" (qué tan lejos de neutro
+      estuvieron en promedio las respuestas relevantes). Un 90% de afinidad
+      con confianza baja no es lo mismo que un 90% con confianza alta, y se
+      lo mostramos al usuario para que no sobreinterprete el número.
+
+   4) EXPLICABILIDAD: cada resultado guarda los 2 rasgos que más pesan en esa
+      familia, para poder mostrar "Coincide en: Análisis, Orden y estructura"
+      en vez de solo un porcentaje sin contexto. */
+
+// Nombres legibles de cada rasgo, para mostrarlos en la UI.
+const NOMBRES_RASGOS = {
+  riasec_realista:'Manos a la obra', riasec_investigador:'Análisis', riasec_artistico:'Creatividad',
+  riasec_social:'Ayudar a otros', riasec_emprendedor:'Liderazgo', riasec_convencional:'Orden y estructura',
+  estilo_equipo:'Trabajo en equipo', comodidad_numeros:'Números', autonomia:'Autonomía', variedad_rutina:'Variedad'
+};
+
+// Agrupa las respuestas por rasgo (quitando el sufijo _1, _2, _3...) y
+// promedia cada grupo, para que varias preguntas cortas de un mismo rasgo
+// cuenten como una sola señal más confiable.
+function getTraitScores(hobbies){
+  const grupos = {};
+  Object.entries(hobbies).forEach(([clave, valor])=>{
+    const rasgo = clave.replace(/_\d+$/, '');
+    if(!grupos[rasgo]) grupos[rasgo] = [];
+    grupos[rasgo].push(valor);
   });
-  return Object.entries(scores).map(([id,v])=>({id:+id, ...v})).sort((a,b)=>b.pct-a.pct);
+  const promedios = {};
+  Object.entries(grupos).forEach(([rasgo, valores])=>{
+    promedios[rasgo] = valores.reduce((a,b)=>a+b, 0) / valores.length;
+  });
+  return promedios;
+}
+
+// Quita tildes y normaliza mayúsculas/espacios para comparar nombres de
+// familias de carrera de forma más flexible ("Ingeniería" == "ingenieria").
+function normalizarNombre(str){
+  return (str||'')
+    .normalize('NFD').replace(/[\u0300-\u036f]/g,'')
+    .toLowerCase().trim();
+}
+
+// Pesos de respaldo para familias de carreras comunes en el Perú. Se usan
+// SOLO si la familia no trae sus propios pesos desde Supabase. Cada entrada
+// es específica de la carrera (no una regex genérica), por lo que da un
+// perfil mucho más preciso que adivinar por palabras clave del nombre.
+const PESOS_RESPALDO = {
+  'ingenieria de sistemas': { riasec_investigador:0.9, riasec_realista:0.5, riasec_convencional:0.5, comodidad_numeros:0.9 },
+  'ingenieria informatica': { riasec_investigador:0.9, riasec_realista:0.5, riasec_convencional:0.5, comodidad_numeros:0.9 },
+  'ingenieria de software': { riasec_investigador:0.85, riasec_convencional:0.4, comodidad_numeros:0.85 },
+  'ingenieria civil': { riasec_realista:0.9, riasec_investigador:0.6, comodidad_numeros:0.7 },
+  'ingenieria industrial': { riasec_convencional:0.8, riasec_investigador:0.6, riasec_emprendedor:0.4, comodidad_numeros:0.8 },
+  'ingenieria electronica': { riasec_realista:0.85, riasec_investigador:0.75, comodidad_numeros:0.8 },
+  'ingenieria mecatronica': { riasec_realista:0.85, riasec_investigador:0.7, comodidad_numeros:0.75 },
+  'ingenieria mecanica': { riasec_realista:0.9, riasec_investigador:0.6, comodidad_numeros:0.7 },
+  'ingenieria ambiental': { riasec_realista:0.6, riasec_investigador:0.7, riasec_social:0.4 },
+  'arquitectura': { riasec_artistico:0.8, riasec_realista:0.6, riasec_investigador:0.4 },
+  'medicina humana': { riasec_social:0.85, riasec_investigador:0.7, riasec_realista:0.3 },
+  'enfermeria': { riasec_social:0.95, riasec_realista:0.3 },
+  'odontologia': { riasec_realista:0.6, riasec_social:0.6, riasec_investigador:0.5 },
+  'obstetricia': { riasec_social:0.9, riasec_realista:0.4 },
+  'nutricion': { riasec_social:0.7, riasec_investigador:0.5, riasec_convencional:0.3 },
+  'psicologia': { riasec_social:0.9, riasec_investigador:0.5 },
+  'educacion': { riasec_social:0.9, riasec_artistico:0.3, estilo_equipo:0.5 },
+  'pedagogia': { riasec_social:0.9, riasec_artistico:0.3, estilo_equipo:0.5 },
+  'trabajo social': { riasec_social:0.95, riasec_emprendedor:0.3 },
+  'derecho': { riasec_emprendedor:0.6, riasec_convencional:0.6, riasec_social:0.4 },
+  'ciencias politicas': { riasec_emprendedor:0.6, riasec_social:0.5, riasec_investigador:0.5 },
+  'relaciones internacionales': { riasec_emprendedor:0.6, riasec_social:0.5, riasec_investigador:0.5 },
+  'administracion de empresas': { riasec_emprendedor:0.85, estilo_equipo:0.5, riasec_convencional:0.4 },
+  'administracion': { riasec_emprendedor:0.8, estilo_equipo:0.5, riasec_convencional:0.4 },
+  'marketing': { riasec_emprendedor:0.8, riasec_artistico:0.5, estilo_equipo:0.4 },
+  'negocios internacionales': { riasec_emprendedor:0.8, comodidad_numeros:0.5, estilo_equipo:0.4 },
+  'contabilidad': { riasec_convencional:0.9, comodidad_numeros:0.85 },
+  'economia': { riasec_investigador:0.7, riasec_convencional:0.6, comodidad_numeros:0.8 },
+  'finanzas': { riasec_convencional:0.7, comodidad_numeros:0.85, riasec_emprendedor:0.4 },
+  'diseno grafico': { riasec_artistico:0.95, riasec_realista:0.3 },
+  'diseno de interiores': { riasec_artistico:0.9, riasec_realista:0.4 },
+  'diseno de modas': { riasec_artistico:0.9, riasec_emprendedor:0.3 },
+  'artes visuales': { riasec_artistico:0.95 },
+  'musica': { riasec_artistico:0.95 },
+  'comunicaciones': { riasec_artistico:0.6, riasec_social:0.5, riasec_emprendedor:0.4 },
+  'ciencias de la comunicacion': { riasec_artistico:0.6, riasec_social:0.5, riasec_emprendedor:0.4 },
+  'periodismo': { riasec_artistico:0.5, riasec_investigador:0.5, riasec_social:0.5 },
+  'publicidad': { riasec_artistico:0.7, riasec_emprendedor:0.6 },
+  'turismo y hoteleria': { riasec_social:0.6, riasec_emprendedor:0.5, estilo_equipo:0.6 },
+  'gastronomia': { riasec_realista:0.6, riasec_artistico:0.6, estilo_equipo:0.4 },
+  'agronomia': { riasec_realista:0.85, riasec_investigador:0.6 },
+  'veterinaria': { riasec_realista:0.7, riasec_social:0.5, riasec_investigador:0.5 },
+  'biologia': { riasec_investigador:0.9, riasec_realista:0.4 },
+  'ciencias ambientales': { riasec_investigador:0.7, riasec_realista:0.6, riasec_social:0.3 },
+};
+function buscarPesosRespaldo(nombreFamilia){
+  const norm = normalizarNombre(nombreFamilia);
+  if(PESOS_RESPALDO[norm]) return PESOS_RESPALDO[norm];
+  // Coincidencia parcial por si el nombre en Supabase trae variantes
+  // ("Ing. de Sistemas", "Administración de Empresas y Negocios", etc.)
+  const claveParecida = Object.keys(PESOS_RESPALDO).find(k => norm.includes(k) || k.includes(norm));
+  return claveParecida ? PESOS_RESPALDO[claveParecida] : null;
+}
+
+// Similitud de coseno entre los rasgos del usuario (ya promediados y
+// centrados en 0) y los pesos de una familia. Además de la afinidad (0-100),
+// devuelve una confianza (0-100): qué tan lejos de neutro (50) estuvieron en
+// promedio las respuestas usadas para este cálculo. Respuestas todas cerca
+// de "Algo, depende" dan una confianza baja aunque el coseno salga alto.
+function cosineScoreConConfianza(traitScores, pesos){
+  const keys = Object.keys(pesos||{});
+  if(!keys.length) return null;
+  let dot=0, magUser=0, magFam=0, sumDistancia=0;
+  keys.forEach(key=>{
+    const valor = traitScores[key] ?? 50;
+    const centrado = (valor-50)/50; // -1..1, neutro si no se respondió
+    const peso = pesos[key];
+    dot += centrado*peso;
+    magUser += centrado*centrado;
+    magFam += peso*peso;
+    sumDistancia += Math.abs(centrado);
+  });
+  const confianza = Math.round((sumDistancia/keys.length)*100);
+  if(magUser===0 || magFam===0) return { pct:50, confianza };
+  const cos = dot/(Math.sqrt(magUser)*Math.sqrt(magFam));
+  return { pct: Math.round(((cos+1)/2)*100), confianza };
+}
+
+function computeMatches(){
+  const traitScores = getTraitScores(state.hobbies);
+  return DB.familias.map(fam=>{
+    const tienePesosPropios = fam.pesos && Object.keys(fam.pesos).length>0;
+    const pesos = tienePesosPropios ? fam.pesos : buscarPesosRespaldo(fam.nombre);
+    if(!pesos){
+      return { id:fam.id, nombre:fam.nombre, pct:50, confianza:0, sinDatos:true, rasgos:[] };
+    }
+    const resultado = cosineScoreConConfianza(traitScores, pesos);
+    const rasgosOrdenados = Object.entries(pesos)
+      .sort((a,b)=>b[1]-a[1])
+      .slice(0,2)
+      .map(([clave])=>NOMBRES_RASGOS[clave] || clave);
+    return { id:fam.id, nombre:fam.nombre, pct:resultado.pct, confianza:resultado.confianza, sinDatos:false, rasgos:rasgosOrdenados };
+  }).sort((a,b)=>b.pct-a.pct);
 }
 // Calcula cuál debería ser la carrera "principal" por defecto (antes de que
 // el usuario elija explícitamente una alternativa).
 function computeDefaultPrincipal(ranked){
   if(state.carreraDeseada && state.carreraDeseadaFamiliaId){
-    return ranked.find(r=>r.id===state.carreraDeseadaFamiliaId) || {nombre:state.carreraDeseada, pct:null, id:'custom'};
+    return ranked.find(r=>r.id===state.carreraDeseadaFamiliaId) || {nombre:state.carreraDeseada, pct:null, id:'custom', rasgos:[], confianza:null};
   } else if(state.carreraDeseada){
-    return {nombre:state.carreraDeseada, pct:null, id:'custom'};
+    return {nombre:state.carreraDeseada, pct:null, id:'custom', rasgos:[], confianza:null};
   } else if(ranked.length){
     return ranked[0];
   }
-  return {nombre:'Explora tus opciones', pct:null, id:null};
+  return {nombre:'Explora tus opciones', pct:null, id:null, rasgos:[], confianza:null};
+}
+// Texto de confianza en palabras simples, para no mostrarle al usuario un
+// número técnico sin contexto.
+function textoConfianza(confianza){
+  if(confianza===null || confianza===undefined) return '';
+  if(confianza>=60) return 'Confianza alta — tus respuestas fueron bastante definidas.';
+  if(confianza>=30) return 'Confianza media — responde con más convicción para afinar tu match.';
+  return 'Confianza baja — muchas de tus respuestas fueron "depende". Anímate a ser más definido en el test.';
+}
+function pintarRasgosYConfianza(item){
+  const wrapRasgos = document.getElementById('matchRasgos');
+  const wrapConfianza = document.getElementById('matchConfianza');
+  if(item.rasgos && item.rasgos.length){
+    wrapRasgos.innerHTML = item.rasgos.map(r=>`<span class="tag trait">Coincide en: ${escapeHtml(r)}</span>`).join('');
+  } else {
+    wrapRasgos.innerHTML='';
+  }
+  wrapConfianza.textContent = textoConfianza(item.confianza);
 }
 function renderMatch(){
   const ranked = computeMatches();
@@ -1143,7 +1365,7 @@ function renderMatch(){
   if(state.matchChosenId===null || state.matchChosenId===undefined){
     principal = computeDefaultPrincipal(ranked);
   } else if(state.matchChosenId==='custom'){
-    principal = {nombre: state.carreraElegida || state.carreraDeseada, pct:null, id:'custom'};
+    principal = {nombre: state.carreraElegida || state.carreraDeseada, pct:null, id:'custom', rasgos:[], confianza:null};
   } else {
     principal = ranked.find(r=>r.id===state.matchChosenId) || computeDefaultPrincipal(ranked);
   }
@@ -1164,6 +1386,7 @@ function renderMatch(){
     document.getElementById('matchBarPrincipal').style.width = principal.pct+'%';
     document.getElementById('matchPctPrincipal').textContent = principal.pct+'%';
   }
+  pintarRasgosYConfianza(principal);
 
   const alternativas = ranked.filter(r=>r.id!==principal.id).slice(0,3);
   const wrap = document.getElementById('alternativas');
@@ -1171,7 +1394,8 @@ function renderMatch(){
   alternativas.forEach(alt=>{
     const card = document.createElement('div');
     card.className='cardbox';
-    card.innerHTML = `<h4>${escapeHtml(alt.nombre)}</h4><p>Afinidad calculada con tus respuestas</p>
+    const rasgosTxt = alt.rasgos && alt.rasgos.length ? `Coincide en: ${alt.rasgos.join(', ')}` : 'Afinidad calculada con tus respuestas';
+    card.innerHTML = `<h4>${escapeHtml(alt.nombre)}</h4><p>${escapeHtml(rasgosTxt)}</p>
       <div class="match-bar-row" style="margin-top:8px;"><span class="mono">${alt.pct}%</span><div class="match-bar"><div style="width:${alt.pct}%;"></div></div></div>`;
     card.onclick = ()=>{
       play('select');
@@ -1187,6 +1411,7 @@ function renderMatch(){
       br.style.display='flex';
       document.getElementById('matchBarPrincipal').style.width = alt.pct+'%';
       document.getElementById('matchPctPrincipal').textContent = alt.pct+'%';
+      pintarRasgosYConfianza(alt);
       document.getElementById('btnP4').disabled=false;
     };
     wrap.appendChild(card);
@@ -1195,9 +1420,32 @@ function renderMatch(){
 }
 
 /* ===================== PANTALLA 5: REALIDAD (leída de carrera_detalle, actualizada por Gemini) ===================== */
+// Si el usuario eligió/escribió una carrera sin familia_id exacta (por
+// ejemplo, escribió el nombre a mano en el paso 3), buscamos la familia más
+// parecida por nombre para no perder los datos de sueldos/demanda/ambitos.
+function buscarDetalleAproximado(nombreCarrera){
+  if(!nombreCarrera) return null;
+  const norm = normalizarNombre(nombreCarrera);
+  if(!norm) return null;
+  let mejor = null;
+  DB.familias.forEach(fam=>{
+    if(mejor) return;
+    const normFam = normalizarNombre(fam.nombre);
+    if(normFam===norm || normFam.includes(norm) || norm.includes(normFam)){
+      const det = DB.detallePorFamilia[fam.id];
+      if(det) mejor = { detalle:det, nombreFamilia:fam.nombre };
+    }
+  });
+  return mejor;
+}
 function renderRealidad(){
   document.getElementById('carreraNombre5').textContent = state.carreraElegida;
-  const detalle = state.carreraElegidaFamiliaId ? DB.detallePorFamilia[state.carreraElegidaFamiliaId] : null;
+  let detalle = state.carreraElegidaFamiliaId ? DB.detallePorFamilia[state.carreraElegidaFamiliaId] : null;
+  let esAproximado = false;
+  if(!detalle){
+    const aprox = buscarDetalleAproximado(state.carreraElegida);
+    if(aprox){ detalle = aprox.detalle; esAproximado = true; }
+  }
   if(!detalle){
     document.getElementById('carreraDesc5').textContent = "Aún no tenemos el detalle actualizado de esta carrera en la base de datos — nuestro sistema con IA lo generará pronto. Mientras tanto, revisa las instituciones disponibles en el siguiente paso.";
     document.getElementById('sueldoJunior').textContent = 'S/. —';
@@ -1221,9 +1469,11 @@ function renderRealidad(){
   document.getElementById('cursosClave').innerHTML = (detalle.cursos||[]).map(t=>`<span class="tag">${escapeHtml(t)}</span>`).join('');
   document.getElementById('modalidadTags').innerHTML = (detalle.modalidad||[]).map(t=>`<span class="tag">${escapeHtml(t)}</span>`).join('');
   const fechaValida = detalle.actualizado_en && !isNaN(new Date(detalle.actualizado_en).getTime());
-  document.getElementById('fuenteDatos5').textContent = fechaValida
-    ? `Datos actualizados con IA · ${new Date(detalle.actualizado_en).toLocaleDateString('es-PE')}`
-    : 'Datos generados con IA';
+  document.getElementById('fuenteDatos5').textContent = esAproximado
+    ? 'Datos aproximados de una carrera similar en nuestra base — se actualizarán con IA cuando tengamos el detalle exacto.'
+    : (fechaValida
+      ? `Datos actualizados con IA · ${new Date(detalle.actualizado_en).toLocaleDateString('es-PE')}`
+      : 'Datos generados con IA');
 }
 
 /* ===================== PANTALLA 6: INSTITUCIONES ===================== */
