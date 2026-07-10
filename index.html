@@ -15,7 +15,7 @@
   --ease:cubic-bezier(.22,1,.36,1);
 }
 *{box-sizing:border-box;}
-html,body{margin:0;padding:0;}
+html,body{margin:0;padding:0; overflow-x:hidden;}
 body{background:var(--bg); color:var(--text); font-family:'Inter',sans-serif; min-height:100vh; display:flex; flex-direction:column; align-items:center; -webkit-font-smoothing:antialiased;}
 body::before{content:""; position:fixed; inset:0; background:radial-gradient(circle at 50% -10%, rgba(255,122,48,.14), transparent 45%), radial-gradient(circle at 100% 100%, rgba(45,212,191,.08), transparent 50%), radial-gradient(circle at 0% 60%, rgba(255,122,48,.05), transparent 40%); pointer-events:none; z-index:0;}
 h1,h2,h3,.display{font-family:'Space Grotesk',sans-serif;}
@@ -119,9 +119,18 @@ select:disabled, input:disabled{opacity:.4; cursor:not-allowed;}
 .nav-row .btn-ghost{flex:0 0 auto; width:auto; padding:14px 18px;}
 .nav-row .btn-primary{flex:1;}
 
+/* La portada (screen-0) rompe el ancho máximo del shell (560px) para
+   ocupar todo el viewport, como una landing page normal. El resto de
+   pantallas (1-8) se quedan en su columna angosta tipo formulario. */
+#screen-0{
+  position:relative; left:50%; right:50%;
+  margin-left:-50vw; margin-right:-50vw;
+  width:100vw; max-width:100vw;
+  padding:0;
+}
 .gate{
-  position:relative; display:flex; flex-direction:column; align-items:center; justify-content:flex-start; min-height:100vh; gap:0; text-align:center; padding:56px 24px 40px; overflow:hidden;
-  background-image: linear-gradient(to bottom, rgba(11,15,20,.55), rgba(11,15,20,.9)), url('img/hero.png');
+  position:relative; display:flex; flex-direction:column; align-items:center; justify-content:flex-start; min-height:100vh; gap:0; text-align:center; padding:64px 24px 48px; overflow:hidden;
+  background-image: linear-gradient(180deg, rgba(11,15,20,.35) 0%, rgba(11,15,20,.55) 45%, rgba(11,15,20,.92) 100%), url('img/hero.png');
   background-size: cover;
   background-position: center;
   background-repeat: no-repeat;
