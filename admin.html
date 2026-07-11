@@ -8,31 +8,199 @@
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 <style>
-/* Variables base (las mismas que usa index.html) — admin.css depende de ellas */
 :root{
-  --bg:#0B0F14; --surface:#121821; --surface-2:#1A222D; --line:#26303C;
-  --text:#EDF1F5; --text-dim:#8B98A6; --diode:#FF7A30; --diode-glow:#FFB066;
-  --current:#2DD4BF; --danger:#FF5C5C; --radius:18px;
+  --bg:#080C10; --surface:#0F1520; --surface-2:#16202C; --surface-3:#1E2A38;
+  --line:#1E2D3D; --line-2:#253345;
+  --text:#EDF1F5; --text-dim:#7A8A99; --text-muted:#4A5A6A;
+  --diode:#FF7A30; --diode-2:#FF9A5A; --diode-glow:#FFB066;
+  --teal:#2DD4BF; --teal-dim:#1A8A7C;
+  --danger:#FF5C5C; --success:#4ADE80;
   --ease:cubic-bezier(.22,1,.36,1);
+  --r:14px;
 }
-*{box-sizing:border-box;}
-html,body{margin:0;padding:0;}
-body{background:var(--bg); color:var(--text); font-family:'Inter',sans-serif; min-height:100vh; -webkit-font-smoothing:antialiased;}
-h1,h2,h3{font-family:'Space Grotesk',sans-serif;}
-.spinner-mini{width:14px;height:14px;border-radius:50%;border:2px solid var(--line); border-top-color:var(--diode); display:inline-block; animation:spin .7s linear infinite; margin-right:6px; vertical-align:-2px;}
+*{box-sizing:border-box;margin:0;padding:0;}
+html,body{height:100%; overflow:hidden;}
+body{background:var(--bg); color:var(--text); font-family:'Inter',sans-serif; -webkit-font-smoothing:antialiased; display:flex; flex-direction:column;}
+h1,h2,h3,h4{font-family:'Space Grotesk',sans-serif;}
+.mono{font-family:'JetBrains Mono',monospace;}
+
+/* ============ TOPBAR ============ */
+.topbar{
+  display:flex; align-items:center; gap:16px;
+  padding:0 24px; height:58px;
+  background:var(--surface); border-bottom:1px solid var(--line);
+  flex:0 0 auto; z-index:100;
+}
+.topbar-logo{display:flex; align-items:center; gap:10px; text-decoration:none;}
+.topbar-logo img{width:32px;height:32px; border-radius:50%; object-fit:cover; border:1px solid rgba(255,176,102,.3); box-shadow:0 0 10px rgba(255,122,48,.2);}
+.topbar-logo span{font-family:'Space Grotesk',sans-serif; font-weight:700; font-size:16px; color:var(--text);}
+.topbar-logo .pipe{width:1px;height:16px; background:var(--line-2); margin:0 4px;}
+.topbar-logo .sub{font-size:12px; color:var(--text-dim); font-family:'JetBrains Mono',monospace; letter-spacing:.06em; text-transform:uppercase;}
+.topbar-spacer{flex:1;}
+.topbar-session{display:flex; align-items:center; gap:12px;}
+.topbar-avatar{width:32px;height:32px; border-radius:50%; background:linear-gradient(135deg,var(--diode),#E0571A); display:flex; align-items:center; justify-content:center; font-weight:700; font-size:13px; color:#1A0E05; flex:0 0 auto;}
+.topbar-email{font-size:13px; color:var(--text-dim);}
+.btn-topbar{background:transparent; border:1px solid var(--line-2); color:var(--text-dim); padding:8px 14px; border-radius:10px; font-size:12px; font-weight:600; cursor:pointer; transition:all .15s; letter-spacing:.03em; font-family:'Inter',sans-serif;}
+.btn-topbar:hover{border-color:var(--danger); color:var(--danger);}
+.topbar-refresh{border-color:var(--line-2); color:var(--text-dim);}
+.topbar-refresh:hover{border-color:var(--teal); color:var(--teal);}
+
+/* ============ LAYOUT ============ */
+.admin-body{display:flex; flex:1; overflow:hidden;}
+
+/* ============ SIDEBAR ============ */
+.sidebar{
+  width:220px; flex:0 0 220px;
+  background:var(--surface); border-right:1px solid var(--line);
+  display:flex; flex-direction:column; gap:0; padding:16px 12px;
+  overflow-y:auto;
+}
+.sidebar-section{font-size:10px; text-transform:uppercase; letter-spacing:.1em; color:var(--text-muted); font-family:'JetBrains Mono',monospace; padding:14px 10px 6px;}
+.sidebar-item{
+  display:flex; align-items:center; gap:10px;
+  padding:9px 12px; border-radius:10px; cursor:pointer;
+  font-size:13px; font-weight:500; color:var(--text-dim);
+  transition:all .14s; position:relative; border:none; background:none; width:100%; text-align:left;
+}
+.sidebar-item:hover{background:var(--surface-2); color:var(--text);}
+.sidebar-item.active{background:rgba(255,122,48,.12); color:var(--diode-2);}
+.sidebar-item.active::before{content:""; position:absolute; left:0; top:20%; bottom:20%; width:2px; border-radius:2px; background:var(--diode);}
+.sidebar-icon{width:16px;height:16px; opacity:.6; flex:0 0 auto;}
+.sidebar-item.active .sidebar-icon{opacity:1;}
+.sidebar-count{margin-left:auto; font-size:10px; font-family:'JetBrains Mono',monospace; background:rgba(255,122,48,.15); color:var(--diode-glow); padding:2px 7px; border-radius:20px;}
+
+/* ============ MAIN ============ */
+.main{flex:1; overflow-y:auto; padding:24px 28px; display:flex; flex-direction:column; gap:22px;}
+.main::-webkit-scrollbar{width:6px;}
+.main::-webkit-scrollbar-thumb{background:var(--line-2); border-radius:3px;}
+
+/* ============ STATS ============ */
+#statsRow{display:grid; grid-template-columns:repeat(5,1fr); gap:12px;}
+.stat-card{
+  background:var(--surface); border:1px solid var(--line);
+  border-radius:var(--r); padding:18px 16px; position:relative; overflow:hidden;
+  transition:border-color .2s, transform .2s;
+}
+.stat-card:hover{border-color:var(--line-2); transform:translateY(-1px);}
+.stat-card::before{content:""; position:absolute; top:0; left:0; right:0; height:2px; border-radius:var(--r) var(--r) 0 0; background:linear-gradient(90deg,var(--diode),var(--diode-glow)); opacity:.5;}
+.stat-card .n{font-family:'Space Grotesk',sans-serif; font-size:32px; font-weight:700; color:var(--diode-glow); line-height:1; margin-bottom:6px;}
+.stat-card .l{font-size:11.5px; color:var(--text-dim); line-height:1.4;}
+.stat-card:nth-child(2)::before{background:linear-gradient(90deg,var(--teal),#21A697);}
+.stat-card:nth-child(2) .n{color:var(--teal);}
+.stat-card:nth-child(4)::before{background:linear-gradient(90deg,#B9A6FF,#8B72FF);}
+.stat-card:nth-child(4) .n{color:#B9A6FF;}
+.stat-card:nth-child(5)::before{background:linear-gradient(90deg,#4ADE80,#22C55E);}
+.stat-card:nth-child(5) .n{color:#4ADE80;}
+
+/* ============ TOOLBAR ============ */
+.toolbar{
+  display:flex; align-items:center; gap:10px; flex-wrap:wrap;
+  background:var(--surface); border:1px solid var(--line); border-radius:var(--r); padding:14px 16px;
+}
+.toolbar-label{font-size:12px; color:var(--text-dim); font-family:'JetBrains Mono',monospace; letter-spacing:.05em; white-space:nowrap;}
+.search-wrap{display:flex; align-items:center; gap:8px; background:var(--surface-2); border:1px solid var(--line-2); border-radius:10px; padding:8px 12px; flex:1; min-width:180px;}
+.search-wrap svg{flex:0 0 auto; opacity:.4;}
+.search-wrap input{background:none; border:none; outline:none; color:var(--text); font-size:13px; font-family:'Inter',sans-serif; width:100%;}
+.search-wrap input::placeholder{color:var(--text-muted);}
+.filter-select{background:var(--surface-2); border:1px solid var(--line-2); color:var(--text-dim); padding:8px 32px 8px 12px; border-radius:10px; font-size:13px; outline:none; font-family:'Inter',sans-serif; appearance:none; background-image:url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="%237A8A99" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg>'); background-repeat:no-repeat; background-position:right 8px center;}
+.btn-export{display:flex; align-items:center; gap:6px; background:rgba(45,212,191,.1); border:1px solid rgba(45,212,191,.25); color:var(--teal); padding:8px 14px; border-radius:10px; font-size:12px; font-weight:600; cursor:pointer; transition:all .15s; font-family:'Inter',sans-serif; white-space:nowrap;}
+.btn-export:hover{background:rgba(45,212,191,.18);}
+.toolbar-count{font-size:12px; color:var(--text-muted); font-family:'JetBrains Mono',monospace; white-space:nowrap; margin-left:auto;}
+
+/* ============ TABLE CARD ============ */
+.table-card{background:var(--surface); border:1px solid var(--line); border-radius:var(--r); overflow:hidden; flex:1;}
+.table-header-row{display:flex; align-items:center; justify-content:space-between; padding:14px 18px; border-bottom:1px solid var(--line);}
+.table-header-row h3{font-size:14px; font-weight:600; color:var(--text);}
+.table-wrap{overflow-x:auto; max-height:calc(100vh - 340px);}
+.table-wrap::-webkit-scrollbar{height:5px; width:5px;}
+.table-wrap::-webkit-scrollbar-thumb{background:var(--line-2); border-radius:3px;}
+table.admin-table{width:100%; border-collapse:collapse; font-size:12.5px; min-width:1300px;}
+table.admin-table thead{position:sticky; top:0; z-index:10;}
+table.admin-table th{
+  text-align:left; padding:10px 14px;
+  background:var(--surface-2); color:var(--text-muted);
+  font-weight:600; font-size:10px; text-transform:uppercase; letter-spacing:.07em;
+  white-space:nowrap; border-bottom:1px solid var(--line);
+}
+table.admin-table th:first-child{border-left:2px solid transparent;}
+table.admin-table td{
+  padding:11px 14px; border-bottom:1px solid var(--line);
+  white-space:nowrap; color:var(--text-dim);
+  transition:background .1s;
+}
+table.admin-table td:first-child{color:var(--text-muted); font-size:11px; font-family:'JetBrains Mono',monospace;}
+table.admin-table td:nth-child(3){color:var(--text); font-weight:500;}
+table.admin-table tr:hover td{background:rgba(255,122,48,.035);}
+table.admin-table tr:last-child td{border-bottom:none;}
+.pill{display:inline-flex; align-items:center; gap:5px; padding:3px 9px; border-radius:20px; font-size:10.5px; font-weight:600; border:1px solid;}
+.pill::before{content:""; width:5px;height:5px; border-radius:50%;}
+.pill.invitado{color:var(--text-muted); border-color:var(--line-2);}
+.pill.invitado::before{background:var(--text-muted);}
+.pill.registrado{color:var(--teal); border-color:rgba(45,212,191,.35); background:rgba(45,212,191,.06);}
+.pill.registrado::before{background:var(--teal); box-shadow:0 0 4px var(--teal);}
+.admin-empty{
+  padding:60px 24px; text-align:center; color:var(--text-muted);
+  font-size:14px; line-height:1.5;
+}
+.admin-empty .empty-icon{font-size:38px; display:block; margin-bottom:12px; opacity:.4;}
+.spinner-mini{width:13px;height:13px; border-radius:50%; border:2px solid var(--line-2); border-top-color:var(--diode); display:inline-block; animation:spin .65s linear infinite; margin-right:6px; vertical-align:-2px;}
 @keyframes spin{to{transform:rotate(360deg);}}
-.btn-google{display:flex; align-items:center; justify-content:center; gap:10px; background:#fff; color:#1A1A1A; border:none; border-radius:14px; padding:15px 22px; font-weight:600; font-size:14px; cursor:pointer; transition:transform .15s var(--ease);}
-.btn-google:hover{transform:translateY(-1px);}
+
+/* ============ SCREENS (gate, loading, denied) ============ */
+.full-screen{
+  position:fixed; inset:0; background:var(--bg);
+  display:flex; flex-direction:column; align-items:center; justify-content:center;
+  gap:24px; text-align:center; padding:32px; z-index:200;
+}
+.full-screen .logo-wrap{margin-bottom:8px;}
+.full-screen .logo-wrap img{width:72px;height:72px; border-radius:50%; object-fit:cover; box-shadow:0 0 0 1px rgba(255,176,102,.3), 0 0 30px rgba(255,122,48,.3);}
+.full-screen h2{font-size:22px; color:var(--text);}
+.full-screen p{color:var(--text-dim); max-width:340px; font-size:14px; line-height:1.55;}
+.full-screen p strong{color:var(--text);}
+.full-screen code{background:var(--surface-2); border:1px solid var(--line); padding:2px 8px; border-radius:6px; font-family:'JetBrains Mono',monospace; font-size:12px; color:var(--diode-glow);}
+.btn-google{
+  display:flex; align-items:center; justify-content:center; gap:10px;
+  background:#fff; color:#1A1A1A; border:none; border-radius:12px;
+  padding:14px 24px; font-weight:600; font-size:14px; cursor:pointer;
+  transition:transform .15s, box-shadow .15s; box-shadow:0 4px 14px rgba(0,0,0,.25);
+  font-family:'Inter',sans-serif;
+}
+.btn-google:hover{transform:translateY(-1px); box-shadow:0 8px 22px rgba(0,0,0,.35);}
+.denied-box{background:var(--surface); border:1px solid rgba(255,92,92,.2); border-radius:16px; padding:28px 32px; max-width:380px; display:flex; flex-direction:column; gap:14px;}
+.denied-box .icon{font-size:36px;}
+.denied-box h2{font-size:18px;}
+.denied-box p{font-size:13px; color:var(--text-dim); line-height:1.5;}
+.btn-denied{background:transparent; border:1px solid var(--line-2); color:var(--text-dim); padding:10px 18px; border-radius:10px; font-size:13px; cursor:pointer; font-family:'Inter',sans-serif; transition:all .15s;}
+.btn-denied:hover{border-color:var(--danger); color:var(--danger);}
+.gate-features{display:flex; flex-direction:column; gap:8px; max-width:320px;}
+.gate-feat{display:flex; align-items:center; gap:10px; font-size:13px; color:var(--text-dim); text-align:left;}
+.gate-feat-dot{width:6px;height:6px; border-radius:50%; background:var(--diode); box-shadow:0 0 6px var(--diode); flex:0 0 auto;}
+
+/* ============ COLUMN HIGHLIGHT ============ */
+.col-carrera{color:var(--diode-glow) !important; font-weight:500;}
+.col-inst{color:var(--text) !important;}
+
+@media(max-width:900px){
+  .sidebar{display:none;}
+  #statsRow{grid-template-columns:1fr 1fr;}
+  .topbar-email{display:none;}
+}
 </style>
-<link rel="stylesheet" href="css/admin.css">
 </head>
 <body>
 
-<!-- PANTALLA: GATE (no ha iniciado sesión) -->
-<div id="admin-gate" style="display:flex; flex-direction:column; align-items:center; justify-content:center; min-height:100vh; gap:24px; text-align:center; padding:24px;">
-  <div>
-    <h1>Panel de administración</h1>
-    <p style="color:var(--text-dim); max-width:340px; margin:8px auto 0;">Inicia sesión con una cuenta de Google autorizada para ver las respuestas.</p>
+<!-- ===== PANTALLA: GATE ===== -->
+<div id="admin-gate" class="full-screen" style="display:none;">
+  <div class="logo-wrap">
+    <img src="logo.png" alt="Diodo" onerror="this.style.display='none'">
+  </div>
+  <h2>Panel de administración</h2>
+  <p>Inicia sesión con tu cuenta de Google autorizada para ver las respuestas de los usuarios.</p>
+  <div class="gate-features">
+    <div class="gate-feat"><span class="gate-feat-dot"></span> Estadísticas en tiempo real</div>
+    <div class="gate-feat"><span class="gate-feat-dot"></span> Respuestas de todos los usuarios</div>
+    <div class="gate-feat"><span class="gate-feat-dot"></span> Búsqueda y filtros avanzados</div>
+    <div class="gate-feat"><span class="gate-feat-dot"></span> Exportación a CSV</div>
   </div>
   <button class="btn-google" onclick="loginAdmin();">
     <svg width="18" height="18" viewBox="0 0 18 18"><path fill="#4285F4" d="M17.64 9.2c0-.64-.06-1.25-.16-1.84H9v3.48h4.84c-.21 1.13-.85 2.09-1.81 2.73v2.27h2.92c1.71-1.57 2.69-3.88 2.69-6.64z"/><path fill="#34A853" d="M9 18c2.43 0 4.47-.8 5.96-2.18l-2.92-2.27c-.81.54-1.84.86-3.04.86-2.34 0-4.32-1.58-5.03-3.71H.96v2.33C2.44 15.98 5.48 18 9 18z"/><path fill="#FBBC05" d="M3.97 10.7a5.4 5.4 0 010-3.4V4.97H.96a9 9 0 000 8.06l3.01-2.33z"/><path fill="#EA4335" d="M9 3.58c1.32 0 2.5.45 3.44 1.35l2.58-2.58C13.46.89 11.43 0 9 0 5.48 0 2.44 2.02.96 4.97l3.01 2.33C4.68 5.16 6.66 3.58 9 3.58z"/></svg>
@@ -40,68 +208,217 @@ h1,h2,h3{font-family:'Space Grotesk',sans-serif;}
   </button>
 </div>
 
-<!-- PANTALLA: CARGANDO -->
-<div id="admin-loading" class="admin-loading" style="display:none;">
-  <span class="spinner-mini"></span>
-  <p style="color:var(--text-dim);">Verificando sesión…</p>
+<!-- ===== PANTALLA: CARGANDO ===== -->
+<div id="admin-loading" class="full-screen" style="display:none;">
+  <div style="display:flex; flex-direction:column; align-items:center; gap:14px;">
+    <svg width="40" height="40" viewBox="0 0 64 64" fill="none">
+      <circle cx="32" cy="32" r="30" stroke="#1E2D3D" stroke-width="2"/>
+      <path d="M20 32H30L34 22L38 42L42 32H44" stroke="#FF7A30" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+    </svg>
+    <p style="color:var(--text-dim); font-size:13px; display:flex; align-items:center; gap:6px;">
+      <span class="spinner-mini"></span> Verificando sesión y permisos…
+    </p>
+  </div>
 </div>
 
-<!-- PANTALLA: ACCESO DENEGADO -->
-<div id="admin-denied" class="admin-denied" style="display:none;">
-  <h2>Acceso no autorizado</h2>
-  <p>La cuenta <strong id="deniedEmail"></strong> no está en la lista de administradores autorizados. Pide a alguien con acceso que te agregue en la tabla <code>admins_autorizados</code>.</p>
-  <button class="btn-logout" onclick="logoutAdmin();">Cerrar sesión</button>
+<!-- ===== PANTALLA: ACCESO DENEGADO ===== -->
+<div id="admin-denied" class="full-screen" style="display:none;">
+  <div class="denied-box">
+    <span class="icon">🔒</span>
+    <h2>Acceso no autorizado</h2>
+    <p>La cuenta <strong id="deniedEmail"></strong> no está en la lista de administradores. Pide que te agreguen en la tabla <code>admins_autorizados</code>.</p>
+    <button class="btn-denied" onclick="logoutAdmin();">Cerrar sesión</button>
+  </div>
 </div>
 
-<!-- PANTALLA: DASHBOARD -->
-<div id="admin-dashboard" class="admin-shell" style="display:none;">
-  <div class="admin-header">
-    <h1>Respuestas de usuarios</h1>
-    <div style="display:flex; align-items:center; gap:14px;">
-      <span class="who">Sesión: <strong id="adminEmail"></strong></span>
-      <button class="btn-logout" onclick="logoutAdmin();">Cerrar sesión</button>
+<!-- ===== PANTALLA: DASHBOARD ===== -->
+<div id="admin-dashboard" style="display:none; flex-direction:column; height:100vh;">
+
+  <!-- Topbar -->
+  <header class="topbar">
+    <a class="topbar-logo" href="/" style="display:flex; align-items:center; gap:10px; text-decoration:none;">
+      <img src="logo.png" alt="Diodo" onerror="this.style.display='none'" style="width:32px;height:32px;border-radius:50%;object-fit:cover;">
+      <span style="font-family:'Space Grotesk',sans-serif; font-weight:700; font-size:16px; color:var(--text);">Diodo</span>
+      <span style="width:1px;height:16px;background:var(--line-2);margin:0 2px;"></span>
+      <span style="font-size:11px; color:var(--text-muted); font-family:'JetBrains Mono',monospace; letter-spacing:.06em; text-transform:uppercase;">Admin</span>
+    </a>
+    <div style="flex:1;"></div>
+    <div class="topbar-session">
+      <button class="btn-topbar topbar-refresh" onclick="cargarRespuestas();">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="vertical-align:-1px; margin-right:4px;"><path d="M1 4v6h6M23 20v-6h-6"/><path d="M20.49 9A9 9 0 005.64 5.64L1 10M23 14l-4.64 4.36A9 9 0 013.51 15"/></svg>
+        Actualizar
+      </button>
+      <div class="topbar-avatar" id="topbarInitial">A</div>
+      <span class="topbar-email" id="adminEmail"></span>
+      <button class="btn-topbar" onclick="logoutAdmin();">Cerrar sesión</button>
     </div>
-  </div>
+  </header>
 
-  <div id="statsRow" class="stats-row"></div>
+  <div class="admin-body">
 
-  <div class="toolbar">
-    <input type="text" id="filtroTexto" placeholder="Buscar por nombre, email, carrera…">
-    <select id="filtroTipo">
-      <option value="todos">Todos</option>
-      <option value="registrado">Solo registrados (Google)</option>
-      <option value="invitado">Solo invitados</option>
-    </select>
-  </div>
+    <!-- Sidebar -->
+    <aside class="sidebar">
+      <div class="sidebar-section">General</div>
+      <button class="sidebar-item active">
+        <svg class="sidebar-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
+        Respuestas
+        <span class="sidebar-count" id="sidebarCount">0</span>
+      </button>
+      <div class="sidebar-section" style="margin-top:8px;">Acceso</div>
+      <button class="sidebar-item" onclick="logoutAdmin();">
+        <svg class="sidebar-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4M16 17l5-5-5-5M21 12H9"/></svg>
+        Cerrar sesión
+      </button>
+      <a class="sidebar-item" href="/" style="text-decoration:none; color:inherit;">
+        <svg class="sidebar-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+        Ir al sitio
+      </a>
+    </aside>
 
-  <div class="table-wrap">
-    <table class="admin-table">
-      <thead>
-        <tr>
-          <th>Fecha</th>
-          <th>Tipo</th>
-          <th>Nombre</th>
-          <th>Email</th>
-          <th>Edad</th>
-          <th>Sexo</th>
-          <th>Residencia</th>
-          <th>Situación</th>
-          <th>Colegio</th>
-          <th>Destino</th>
-          <th>Presupuesto</th>
-          <th>Carrera deseada</th>
-          <th>Carrera elegida</th>
-          <th>Institución elegida</th>
-        </tr>
-      </thead>
-      <tbody id="tbodyRespuestas">
-        <tr><td colspan="14" class="admin-empty"><span class="spinner-mini"></span> Cargando respuestas…</td></tr>
-      </tbody>
-    </table>
-  </div>
-</div>
+    <!-- Main content -->
+    <main class="main">
+
+      <!-- Stats row -->
+      <div id="statsRow">
+        <!-- Generado por admin.js → renderStats() -->
+        <div class="stat-card"><div class="n"><span class="spinner-mini"></span></div><div class="l">Cargando…</div></div>
+      </div>
+
+      <!-- Toolbar -->
+      <div class="toolbar">
+        <span class="toolbar-label">Filtrar</span>
+        <div class="search-wrap">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
+          <input type="text" id="filtroTexto" placeholder="Nombre, email, carrera, institución…">
+        </div>
+        <select class="filter-select" id="filtroTipo">
+          <option value="todos">Todos los usuarios</option>
+          <option value="registrado">Solo con Google</option>
+          <option value="invitado">Solo invitados</option>
+        </select>
+        <button class="btn-export" onclick="exportarCSV();">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
+          Exportar CSV
+        </button>
+        <span class="toolbar-count" id="toolbarCount"></span>
+      </div>
+
+      <!-- Table -->
+      <div class="table-card">
+        <div class="table-header-row">
+          <h3>Historial de respuestas</h3>
+          <span id="tableSubtitle" style="font-size:12px; color:var(--text-muted); font-family:'JetBrains Mono',monospace;"></span>
+        </div>
+        <div class="table-wrap">
+          <table class="admin-table">
+            <thead>
+              <tr>
+                <th>Fecha</th>
+                <th>Tipo</th>
+                <th>Nombre</th>
+                <th>Email</th>
+                <th>Edad</th>
+                <th>Sexo</th>
+                <th>Residencia</th>
+                <th>Situación</th>
+                <th>Colegio</th>
+                <th>Destino</th>
+                <th>Presupuesto</th>
+                <th>Carrera deseada</th>
+                <th>Carrera elegida</th>
+                <th>Institución elegida</th>
+              </tr>
+            </thead>
+            <tbody id="tbodyRespuestas">
+              <tr><td colspan="14" class="admin-empty"><span class="spinner-mini"></span> Cargando respuestas…</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+    </main>
+  </div><!-- /.admin-body -->
+</div><!-- /#admin-dashboard -->
 
 <script src="js/supabase-client.js"></script>
+<script>
+/* ====== Exportar a CSV (función extra no incluida en admin.js) ====== */
+function exportarCSV(){
+  if(!window.TODAS_LAS_RESPUESTAS || !window.TODAS_LAS_RESPUESTAS.length){
+    alert('No hay datos para exportar.'); return;
+  }
+  const cols = ['created_at','es_invitado','nombre','apellido','email','edad','sexo',
+    'depto_residencia','prov_residencia','dist_residencia','situacion','grado','colegio',
+    'destino_depto','destino_prov','presupuesto_cat','presupuesto_monto',
+    'carrera_deseada','carrera_elegida','institucion_elegida'];
+  const header = cols.join(',');
+  const rows = window.TODAS_LAS_RESPUESTAS.map(r=>
+    cols.map(c=>{
+      let v = r[c] ?? '';
+      if(c==='es_invitado') v = v ? 'Invitado' : 'Registrado';
+      v = String(v).replace(/"/g,'""');
+      return v.includes(',') ? `"${v}"` : v;
+    }).join(',')
+  );
+  const csv = [header, ...rows].join('\n');
+  const blob = new Blob(['\uFEFF'+csv], {type:'text/csv;charset=utf-8;'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href=url; a.download=`diodo_respuestas_${new Date().toISOString().slice(0,10)}.csv`;
+  a.click(); URL.revokeObjectURL(url);
+}
+
+/* ====== Patch a renderStats para actualizar sidebar y subtitle ====== */
+const _origRenderStats = window.renderStats;
+document.addEventListener('DOMContentLoaded', ()=>{
+  // patch después de que admin.js cargue
+});
+</script>
 <script src="js/admin.js"></script>
+<script>
+/* ====== Patches post-load ====== */
+// Exponer TODAS_LAS_RESPUESTAS para exportarCSV
+const _origRenderTabla = renderTabla;
+function renderTabla(rows){
+  window.TODAS_LAS_RESPUESTAS = window.TODAS_LAS_RESPUESTAS || [];
+  _origRenderTabla(rows);
+  // actualizar contador en toolbar
+  const count = rows.length;
+  const el = document.getElementById('toolbarCount');
+  if(el) el.textContent = count + ' resultado' + (count!==1?'s':'');
+  const sub = document.getElementById('tableSubtitle');
+  if(sub) sub.textContent = count + ' fila' + (count!==1?'s':'');
+}
+
+const _origRenderStats2 = renderStats;
+function renderStats(rows){
+  window.TODAS_LAS_RESPUESTAS = rows;
+  _origRenderStats2(rows);
+  // actualizar sidebar count
+  const sc = document.getElementById('sidebarCount');
+  if(sc) sc.textContent = rows.length;
+  // iniciales del admin en avatar
+  const emailEl = document.getElementById('adminEmail');
+  const initEl = document.getElementById('topbarInitial');
+  if(emailEl && initEl){
+    const em = emailEl.textContent || '';
+    initEl.textContent = em ? em[0].toUpperCase() : 'A';
+  }
+}
+
+// aplicar patch en mostrarSoloPantalla para el flex del dashboard
+const _origMostrar = mostrarSoloPantalla;
+function mostrarSoloPantalla(id){
+  ['admin-gate','admin-loading','admin-denied','admin-dashboard'].forEach(s=>{
+    const el = document.getElementById(s);
+    if(!el) return;
+    if(s==='admin-dashboard'){
+      el.style.display = (s===id) ? 'flex' : 'none';
+    } else {
+      el.style.display = (s===id) ? 'flex' : 'none';
+    }
+  });
+}
+</script>
 </body>
 </html>
