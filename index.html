@@ -148,12 +148,11 @@ select:disabled, input:disabled{opacity:.4; cursor:not-allowed;}
   margin-left:-50vw; margin-right:-50vw;
   width:100vw; max-width:100vw;
   padding:0;
-  background:var(--bg);
 }
 .gate{
   position:relative; display:flex; flex-direction:column; align-items:center; justify-content:flex-start; min-height:100dvh; gap:0; text-align:center; padding:64px 24px 64px; overflow:hidden;
 }
-.gate-atmosphere{position:absolute; inset:0; z-index:0; overflow:hidden; pointer-events:none; background:var(--bg);}
+.gate-atmosphere{position:absolute; inset:0; z-index:0; overflow:hidden; pointer-events:none;}
 .gate-atmosphere .stars{position:absolute; inset:0;
   background-image:
     radial-gradient(1.5px 1.5px at 12% 22%, rgba(237,241,245,.55), transparent),
@@ -1033,10 +1032,10 @@ function validateAndGo(next){
    es solo un promedio de opciones elegidas.
 
    Ahora cada opción guarda una puntuación Likert de 1 a 5 (muy en
-   desacuerdo → muy de acuerdo). Esa puntuación se centra en 0 (restando 3)
-   para construir el componente real del vector V_e = [R,I,A,S,E,C] que
-   se usa en el coseno de similitud (ver construirVectorRIASEC). El label
-   que ve el usuario no cambia, solo cómo se almacena y se calcula. */
+   desacuerdo → muy de acuerdo). Esa puntuación se usa directamente (sin
+   centrar) para construir el componente real del vector V_e = [R,I,A,S,E,C]
+   que se usa en el coseno de similitud (ver construirVectorRIASEC). El
+   label que ve el usuario no cambia, solo cómo se almacena y se calcula. */
 const OPCIONES_5 = [
   {label:"Nada, no me identifica", val:1},
   {label:"Poco", val:2},
@@ -1155,9 +1154,10 @@ async function fillProvDestino(){
   }
 }
 
-// ---- Autocompletado que va reduciendo opciones mientras el usuario escribe,
-// y que sugiere las carreras con mayor afinidad según el test cuando el
-// campo está vacío. ----
+// ---- Autocompletado real contra el catálogo mientras el usuario escribe.
+// Ya NO se muestran sugerencias automáticas basadas en el test cuando el
+// campo está vacío o recibe foco: el campo de "carrera en mente" del Paso 3
+// solo debe reaccionar a lo que el usuario escribe. ----
 const inCarrera = document.getElementById('inCarreraDeseada');
 const acBox = document.getElementById('acCarreras');
 let acTimer=null, acIndex=-1, acItemsCache=[], acRequestId=0;
@@ -1166,20 +1166,6 @@ function highlight(nombre, term){
   const i = nombre.toLowerCase().indexOf(term.toLowerCase());
   if(i<0) return escapeHtml(nombre);
   return escapeHtml(nombre.slice(0,i)) + '<mark>' + escapeHtml(nombre.slice(i,i+term.length)) + '</mark>' + escapeHtml(nombre.slice(i+term.length));
-}
-function mostrarSugerenciasPorTest(){
-  const ranked = computeMatches();
-  // Con la escala nueva, 50% es "neutro"; solo mostramos sugerencias que
-  // superen claramente ese punto medio. Si ninguna lo supera (test recién
-  // empezado, poca señal), igual mostramos el top 3 para no dejar el campo vacío.
-  const destacadas = ranked.filter(r=>r.pct>55).slice(0,3);
-  const top = destacadas.length ? destacadas : ranked.slice(0,3);
-  if(!top.length){ acBox.classList.remove('show'); acBox.innerHTML=''; return; }
-  acItemsCache = top; acIndex=-1;
-  acBox.innerHTML = '<div class="ac-suggest-label">Sugeridas según tus respuestas</div>' +
-    top.map((r,i)=>`<div class="ac-item" data-i="${i}"><span>${escapeHtml(r.nombre)}</span><span class="ac-pct">${r.pct}% afinidad</span></div>`).join('');
-  acBox.classList.add('show');
-  bindAcItems(top, true);
 }
 function bindAcItems(items, esSugerencia){
   acBox.querySelectorAll('.ac-item').forEach(el=>{
@@ -1194,7 +1180,7 @@ function bindAcItems(items, esSugerencia){
   });
 }
 inCarrera.addEventListener('focus', ()=>{
-  if(!inCarrera.value.trim()) mostrarSugerenciasPorTest();
+  // Ya no mostramos sugerencias automáticas del test al enfocar el campo vacío.
 });
 inCarrera.addEventListener('input', ()=>{
   play('type');
@@ -1203,7 +1189,7 @@ inCarrera.addEventListener('input', ()=>{
   clearTimeout(acTimer);
   const term = state.carreraDeseada;
   if(term.length<2){
-    if(term.length===0) mostrarSugerenciasPorTest(); else { acBox.classList.remove('show'); acBox.innerHTML=''; }
+    acBox.classList.remove('show'); acBox.innerHTML='';
     return;
   }
   acBox.innerHTML = '<div class="loading-row"><span class="spinner-mini"></span>Buscando carreras…</div>';
@@ -1228,10 +1214,9 @@ inCarrera.addEventListener('keydown', (e)=>{
 });
 function updateAcHover(items){ items.forEach((it,i)=>it.classList.toggle('hover', i===acIndex)); items[acIndex]?.scrollIntoView({block:'nearest'}); }
 document.addEventListener('click', (e)=>{ if(!acBox.contains(e.target) && e.target!==inCarrera){ acBox.classList.remove('show'); } });
-// Si el usuario escribe y se va del campo sin elegir ninguna sugerencia
-// (ni la del autocompletado real, ni una de las recomendadas por el test),
-// igual intentamos resolver el texto contra el catálogo para no perder el
-// dato al pasar al siguiente paso.
+// Si el usuario escribe y se va del campo sin elegir ninguna sugerencia del
+// autocompletado real, igual intentamos resolver el texto contra el catálogo
+// para no perder el dato al pasar al siguiente paso.
 inCarrera.addEventListener('blur', ()=>{ setTimeout(intentarResolverCarreraEscrita, 150); });
 
 /* ===================== LÓGICA DE MATCH — Coseno de similitud sobre el vector RIASEC =====================
@@ -1239,10 +1224,10 @@ inCarrera.addEventListener('blur', ()=>{ setTimeout(intentarResolverCarreraEscri
 
    1) VECTOR DEL ALUMNO: las respuestas Likert (1-5) de cada pregunta se
       agrupan por su rasgo (prefijo de la clave, ej. "riasec_realista") y se
-      promedian entre sí (construirVectorRIASEC). El promedio se centra en 0
-      restando 3 y dividiendo entre 2, quedando cada componente del vector
-      en el rango -1..1. Ya NO se trabaja con "porcentaje de opciones": se
-      trabaja con el vector numérico real.
+      promedian entre sí (construirVectorRIASEC). El promedio se reescala
+      linealmente de 1..5 a 0..1 (SIN centrar en 0): U_i = (promedio-1)/4.
+      Así el vector del alumno usa exactamente la misma escala 0..1 que el
+      vector de pesos de cada carrera, tal como exige la fórmula de coseno.
 
    2) VECTOR DE CADA CARRERA: cada familia de carrera tiene un perfil de
       pesos por dimensión RIASEC (0..1), ya sea configurado en Supabase
@@ -1250,14 +1235,28 @@ inCarrera.addEventListener('blur', ()=>{ setTimeout(intentarResolverCarreraEscri
       tabla explícita y editable, específica por carrera (no una regex
       genérica sobre el nombre).
 
-   3) EL MATCH: se calcula la similitud de coseno entre ambos vectores de
-      6 componentes. cos(θ) = (V_e · V_c) / (‖V_e‖ ‖V_c‖). El resultado
-      (-1..1) se reescala a 0-100% solo para mostrarlo en la interfaz.
+   3) EL MATCH: se calcula la similitud de coseno pura entre ambos vectores
+      de 6 componentes, exactamente como:
 
-   4) CONFIANZA: además del coseno, se calcula qué tan lejos de "neutro"
-      estuvieron en promedio las respuestas relevantes para esa carrera.
-      Respuestas todas en "Algo, depende" (3/5) dan una confianza baja
-      aunque el coseno salga alto, y se lo mostramos al usuario. */
+          Afinidad = (Σ Ui·Ci) / (√(Σ Ui²) · √(Σ Ci²))
+
+      El resultado (0..1) se reescala a 0-100% solo para mostrarlo en la
+      interfaz (ya no se hace ningún ajuste de rango adicional).
+
+   4) FILTRO DE VETO ("guillotina"): si una carrera tiene una dimensión
+      clave con peso > 0.8 en su vector ideal (ej. Investigador para
+      Ingeniería) y el alumno respondió con un valor menor a 0.3 en esa
+      misma dimensión, se penaliza restándole 40 puntos porcentuales de
+      golpe al resultado final (ver aplicarFiltroDeVeto). Esto evita que un
+      alumno "parejo" (que marca todo alto o todo bajo, sin definir un
+      perfil) obtenga afinidades altas en carreras que exigen un rasgo muy
+      específico que él no tiene.
+
+   5) CONFIANZA: además del coseno, se calcula qué tan lejos de "neutro"
+      (0.5) estuvieron en promedio las respuestas relevantes para esa
+      carrera. Respuestas todas en "Algo, depende" (3/5 → 0.5) dan una
+      confianza baja aunque el coseno salga alto, y se lo mostramos al
+      usuario. */
 
 // Nombres legibles de las 6 dimensiones, para mostrarlas en la UI.
 const NOMBRES_RASGOS = {
@@ -1271,11 +1270,17 @@ const NOMBRES_RASGOS = {
 const ORDEN_RASGOS = ['riasec_realista','riasec_investigador','riasec_artistico','riasec_social','riasec_emprendedor','riasec_convencional'];
 const LETRA_RASGO = { riasec_realista:'R', riasec_investigador:'I', riasec_artistico:'A', riasec_social:'S', riasec_emprendedor:'E', riasec_convencional:'C' };
 
+// Umbrales del filtro de veto ("guillotina"): dimensión clave para la carrera
+// (peso ideal > PESO_MIN_VETO) donde el alumno respondió muy bajo
+// (componente < RESPUESTA_MAX_VETO). Ambos en escala 0..1.
+const PESO_MIN_VETO = 0.8;
+const RESPUESTA_MAX_VETO = 0.3;
+const PENALIZACION_VETO = 40; // puntos porcentuales que se restan de golpe
+
 // Agrupa las respuestas Likert (1-5) por rasgo (quitando el sufijo _1, _2,
-// _3...), promedia cada grupo y lo centra en 0 (rango -1..1). Ese es el
-// componente real del vector V_e = [R,I,A,S,E,C] — ya no un "porcentaje
-// de la opción elegida", sino un valor de álgebra lineal listo para el
-// coseno de similitud.
+// _3...) y promedia cada grupo, reescalando linealmente de 1..5 a 0..1
+// (SIN centrar en 0). Ese es el componente real del vector
+// V_e = [R,I,A,S,E,C] — listo para usarse tal cual en la fórmula de coseno.
 function construirVectorRIASEC(hobbies){
   const grupos = {};
   Object.entries(hobbies).forEach(([clave, valorLikert])=>{
@@ -1289,7 +1294,7 @@ function construirVectorRIASEC(hobbies){
     const valores = grupos[rasgo];
     if(!valores || !valores.length){ vector[rasgo] = null; return; } // sin respuestas todavía
     const promedio = valores.reduce((a,b)=>a+b,0) / valores.length; // 1..5
-    vector[rasgo] = (promedio - 3) / 2; // centrado en 0, rango -1..1
+    vector[rasgo] = (promedio - 1) / 4; // reescalado lineal a 0..1, sin centrar
   });
   return vector;
 }
@@ -1369,26 +1374,46 @@ function filtrarPesosRIASEC(pesos){
   return limpio;
 }
 
-// Similitud de coseno pura entre dos vectores de igual dimensión (álgebra
-// lineal real: cos(θ) = (A·B) / (‖A‖‖B‖)), más una confianza (0-100) según
-// qué tan lejos de neutro estuvieron en promedio las respuestas usadas.
+// Similitud de coseno PURA entre dos vectores de igual dimensión, sin
+// ningún centrado ni reescalado adicional — exactamente:
+//   cos(θ) = (Σ Ui·Ci) / (√(Σ Ui²) · √(Σ Ci²))
+// más una confianza (0-100) según qué tan lejos de neutro (0.5) estuvieron
+// en promedio las respuestas usadas.
 function cosineScoreConConfianza(vectorAlumno, pesosCarrera){
   const keys = Object.keys(pesosCarrera||{});
   if(!keys.length) return null;
   let dot=0, magAlumno=0, magCarrera=0, sumDistancia=0, nConRespuesta=0;
   keys.forEach(key=>{
-    const componente = vectorAlumno[key]; // -1..1, o null si no respondió aún
+    const componente = vectorAlumno[key]; // 0..1, o null si no respondió aún
     const valor = componente===null || componente===undefined ? 0 : componente;
     const peso = pesosCarrera[key];
     dot += valor*peso;
     magAlumno += valor*valor;
     magCarrera += peso*peso;
-    if(componente!==null && componente!==undefined){ sumDistancia += Math.abs(componente); nConRespuesta++; }
+    if(componente!==null && componente!==undefined){ sumDistancia += Math.abs(componente-0.5)*2; nConRespuesta++; }
   });
   const confianza = nConRespuesta ? Math.round((sumDistancia/nConRespuesta)*100) : 0;
   if(magAlumno===0 || magCarrera===0) return { pct:50, confianza };
   const cos = dot/(Math.sqrt(magAlumno)*Math.sqrt(magCarrera));
-  return { pct: Math.round(((cos+1)/2)*100), confianza };
+  return { pct: Math.round(cos*100), confianza };
+}
+
+// FILTRO DE VETO ("guillotina"): recorre las dimensiones clave de la
+// carrera (peso ideal > PESO_MIN_VETO); si el alumno respondió por debajo
+// de RESPUESTA_MAX_VETO en alguna de ellas, penaliza el resultado final
+// restándole PENALIZACION_VETO puntos porcentuales de golpe. Devuelve el
+// puntaje ya penalizado (clampado a 0) y si se aplicó algún veto.
+function aplicarFiltroDeVeto(pctBase, vectorAlumno, pesosCarrera){
+  let pct = pctBase;
+  let vetoAplicado = false;
+  Object.entries(pesosCarrera||{}).forEach(([key, peso])=>{
+    const componente = vectorAlumno[key];
+    if(peso > PESO_MIN_VETO && componente!==null && componente!==undefined && componente < RESPUESTA_MAX_VETO){
+      pct = Math.max(0, pct - PENALIZACION_VETO);
+      vetoAplicado = true;
+    }
+  });
+  return { pct, vetoAplicado };
 }
 
 function computeMatches(){
@@ -1398,14 +1423,15 @@ function computeMatches(){
     const tienePesosPropios = Object.keys(pesosPropios).length>0;
     const pesos = tienePesosPropios ? pesosPropios : buscarPesosRespaldo(fam.nombre);
     if(!pesos){
-      return { id:fam.id, nombre:fam.nombre, pct:50, confianza:0, sinDatos:true, rasgos:[] };
+      return { id:fam.id, nombre:fam.nombre, pct:50, confianza:0, sinDatos:true, vetoAplicado:false, rasgos:[] };
     }
     const resultado = cosineScoreConConfianza(vectorAlumno, pesos);
+    const { pct, vetoAplicado } = aplicarFiltroDeVeto(resultado.pct, vectorAlumno, pesos);
     const rasgosOrdenados = Object.entries(pesos)
       .sort((a,b)=>b[1]-a[1])
       .slice(0,2)
       .map(([clave])=>NOMBRES_RASGOS[clave] || clave);
-    return { id:fam.id, nombre:fam.nombre, pct:resultado.pct, confianza:resultado.confianza, sinDatos:false, rasgos:rasgosOrdenados };
+    return { id:fam.id, nombre:fam.nombre, pct, confianza:resultado.confianza, sinDatos:false, vetoAplicado, rasgos:rasgosOrdenados };
   }).sort((a,b)=>b.pct-a.pct);
 }
 
@@ -1430,13 +1456,13 @@ function buscarFamiliaAproximada(nombreCarrera){
 }
 
 // FIX: antes, si el usuario escribía una carrera a mano en el paso 3 y no
-// alcanzaba a elegir ninguna sugerencia (ni del autocompletado real ni de
-// las recomendadas por el test) antes de avanzar de pantalla, ese texto
-// quedaba como "personalizado" sin ningún match calculado — se perdía el
-// valor del coseno de similitud para el siguiente paso. Esta función corre
-// al salir del campo (blur) y al validar el paso 3, e intenta resolver el
-// texto escrito contra el catálogo real de familias por similitud de
-// nombre, para que el match SIEMPRE se calcule cuando sea posible.
+// alcanzaba a elegir ninguna sugerencia del autocompletado real antes de
+// avanzar de pantalla, ese texto quedaba como "personalizado" sin ningún
+// match calculado — se perdía el valor del coseno de similitud para el
+// siguiente paso. Esta función corre al salir del campo (blur) y al validar
+// el paso 3, e intenta resolver el texto escrito contra el catálogo real de
+// familias por similitud de nombre, para que el match SIEMPRE se calcule
+// cuando sea posible.
 function intentarResolverCarreraEscrita(){
   if(!state.carreraDeseada || state.carreraDeseadaFamiliaId) return; // vacío, o ya resuelto
   const fam = buscarFamiliaAproximada(state.carreraDeseada);
@@ -1476,7 +1502,8 @@ function pintarRasgosYConfianza(item){
   } else {
     wrapRasgos.innerHTML='';
   }
-  wrapConfianza.textContent = textoConfianza(item.confianza);
+  const notaVeto = item.vetoAplicado ? ' Penalizado: te falta el rasgo clave que exige esta carrera.' : '';
+  wrapConfianza.textContent = textoConfianza(item.confianza) + notaVeto;
 }
 // Dibuja el vector V_e = [R,I,A,S,E,C] del alumno como 6 barras, para que
 // se vea el álgebra lineal detrás del match y no solo un porcentaje final.
@@ -1484,8 +1511,8 @@ function pintarVectorRIASEC(){
   const vector = construirVectorRIASEC(state.hobbies);
   const wrap = document.getElementById('matchVector');
   wrap.innerHTML = ORDEN_RASGOS.map(r=>{
-    const comp = vector[r]; // -1..1 o null
-    const pct = comp===null ? 0 : Math.round(((comp+1)/2)*100);
+    const comp = vector[r]; // 0..1 o null
+    const pct = comp===null ? 0 : Math.round(comp*100);
     return `<div class="rv-row" title="${escapeHtml(NOMBRES_RASGOS[r])}">
       <span class="rv-key">${LETRA_RASGO[r]}</span>
       <div class="rv-bar"><div style="width:${pct}%;"></div></div>
