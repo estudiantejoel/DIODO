@@ -1644,7 +1644,7 @@ async function renderInstituciones(){
   const institucionPrevia = state.institucionElegida;
   document.getElementById('btnP6').disabled=true;
 
-  let resultado = { institutos:[], universidades:[] };
+  let resultado = { institutos:[], universidades:[], alternativas:null };
   try{
     const res = await fetch(EDGE_FN_BUSCAR_INSTITUCIONES, {
       method:'POST',
@@ -1661,24 +1661,20 @@ async function renderInstituciones(){
   const institutos = (resultado.institutos||[]).filter(i => (i.costo_min ?? 0) <= montoMax);
   const universidades = (resultado.universidades||[]).filter(u => (u.costo_min ?? 0) <= montoMax);
 
-  document.getElementById('instFiltroNota').textContent =
-    `${institutos.length} instituto(s) verificados en nuestra base + ${universidades.length} universidad(es) sugeridas por IA para esta búsqueda.`;
-
-  wrap.innerHTML='';
-  if(institutos.length===0 && universidades.length===0){
-    wrap.innerHTML = `<p class="sub">No encontramos instituciones que ofrezcan ${escapeHtml(carrera)} en ${escapeHtml(state.destino)} dentro de tu presupuesto. Prueba ampliando tu rango o eligiendo otro departamento en el paso anterior.</p>`;
-    return;
-  }
-
-  const crearCard = (nombre, provincia, tipo, gestion, costoMin, costoMax, fuente)=>{
+  // Tarjeta reutilizable. `ubicacionTxt` reemplaza el antiguo "state.destino"
+  // fijo: cuando la opción viene del fallback nacional (otro departamento
+  // distinto al que el usuario eligió), necesitamos mostrar la ubicación
+  // REAL de esa institución, no la que el usuario pidió.
+  const crearCard = (nombre, provincia, tipo, gestion, costoMin, costoMax, fuente, ubicacionTxt, esOtroDepartamento)=>{
     const card = document.createElement('div');
     const estaSeleccionada = nombre===institucionPrevia;
     card.className='cardbox'+(estaSeleccionada?' selected':'');
     const costoTxt = (costoMin===0 && costoMax===0) ? 'Gratuita (pública)' : `S/. ${costoMin} – S/. ${costoMax>=99999?'1500+':costoMax}`;
-    card.innerHTML = `<h4>${escapeHtml(nombre)}</h4><p>${escapeHtml(provincia||'')}${provincia?', ':''}${escapeHtml(state.destino)} · ${costoTxt}</p>
+    card.innerHTML = `<h4>${escapeHtml(nombre)}</h4><p>${escapeHtml(provincia||'')}${provincia?', ':''}${escapeHtml(ubicacionTxt||'')} · ${costoTxt}</p>
       <div class="inst-meta">
         <span class="badge ${gestion==='Publico'?'pub':'priv'}">${escapeHtml(tipo)}</span>
-        ${provincia===state.destinoProv ? '<span class="badge pub">En tu provincia</span>' : ''}
+        ${(!esOtroDepartamento && provincia===state.destinoProv) ? '<span class="badge pub">En tu provincia</span>' : ''}
+        ${esOtroDepartamento ? '<span class="badge ia">Otro departamento</span>' : ''}
         ${fuente==='ia' ? '<span class="badge ia">Verificado por IA</span>' : ''}
       </div>`;
     card.onclick = ()=>{
@@ -1691,15 +1687,82 @@ async function renderInstituciones(){
     return card;
   };
 
-  institutos.forEach(i=>{
-    wrap.appendChild(crearCard(i.nombre, i.ubigeo_provincias?.nombre, 'Instituto', i.gestion, i.costo_min, i.costo_max, 'db'));
+  wrap.innerHTML='';
+
+  // ---- Caso normal: sí hay opciones en el departamento que el usuario eligió ----
+  if(institutos.length>0 || universidades.length>0){
+    document.getElementById('instFiltroNota').textContent =
+      `${institutos.length} instituto(s) verificados en nuestra base + ${universidades.length} universidad(es) sugeridas por IA para esta búsqueda.`;
+
+    institutos.forEach(i=>{
+      wrap.appendChild(crearCard(i.nombre, i.ubigeo_provincias?.nombre, 'Instituto', i.gestion, i.costo_min, i.costo_max, 'db', state.destino, false));
+    });
+    universidades.forEach(u=>{
+      wrap.appendChild(crearCard(u.nombre, u.provincia, 'Universidad', u.gestion, u.costo_min, u.costo_max, 'ia', state.destino, false));
+    });
+
+    const nombresDisponibles = [...institutos.map(i=>i.nombre), ...universidades.map(u=>u.nombre)];
+    if(institucionPrevia && nombresDisponibles.includes(institucionPrevia)){
+      state.institucionElegida = institucionPrevia;
+      document.getElementById('btnP6').disabled=false;
+    } else {
+      state.institucionElegida = null;
+      document.getElementById('btnP6').disabled=true;
+    }
+    return;
+  }
+
+  // ---- Caso vacío en el departamento pedido: usar el fallback nacional
+  // que el backend ya calculó en `resultado.alternativas` (antes se
+  // ignoraba por completo). ----
+  document.getElementById('instFiltroNota').textContent =
+    `No encontramos ${escapeHtml(carrera)} en ${escapeHtml(state.destino)} dentro de tu presupuesto.`;
+
+  const alt = resultado.alternativas;
+  const altInstitutos = (alt?.institutos||[]).filter(i => (i.costo_min ?? 0) <= montoMax);
+  const altUniversidades = (alt?.universidades||[]).filter(u => (u.costo_min ?? 0) <= montoMax);
+
+  if(altInstitutos.length===0 && altUniversidades.length===0){
+    wrap.innerHTML = `<p class="sub">No encontramos instituciones que ofrezcan ${escapeHtml(carrera)} en ${escapeHtml(state.destino)} ni en otros departamentos dentro de tu presupuesto. Prueba ampliando tu rango en el paso anterior.</p>`;
+    state.institucionElegida = null;
+    document.getElementById('btnP6').disabled=true;
+    return;
+  }
+
+  const aviso = document.createElement('p');
+  aviso.className='sub';
+  aviso.textContent = alt?.mensaje || `No encontramos "${carrera}" en ${state.destino}, pero sí en otros departamentos:`;
+  wrap.appendChild(aviso);
+
+  altInstitutos.forEach(i=>{
+    wrap.appendChild(crearCard(
+      i.nombre,
+      i.ubigeo_provincias?.nombre,
+      'Instituto',
+      i.gestion,
+      i.costo_min,
+      i.costo_max,
+      'db',
+      i.ubigeo_provincias?.ubigeo_departamentos?.nombre || '',
+      true
+    ));
   });
-  universidades.forEach(u=>{
-    wrap.appendChild(crearCard(u.nombre, u.provincia, 'Universidad', u.gestion, u.costo_min, u.costo_max, 'ia'));
+  altUniversidades.forEach(u=>{
+    wrap.appendChild(crearCard(
+      u.nombre,
+      u.provincia,
+      'Universidad',
+      u.gestion,
+      u.costo_min,
+      u.costo_max,
+      'ia',
+      u.departamento || '',
+      true
+    ));
   });
 
-  const nombresDisponibles = [...institutos.map(i=>i.nombre), ...universidades.map(u=>u.nombre)];
-  if(institucionPrevia && nombresDisponibles.includes(institucionPrevia)){
+  const nombresDisponiblesAlt = [...altInstitutos.map(i=>i.nombre), ...altUniversidades.map(u=>u.nombre)];
+  if(institucionPrevia && nombresDisponiblesAlt.includes(institucionPrevia)){
     state.institucionElegida = institucionPrevia;
     document.getElementById('btnP6').disabled=false;
   } else {
