@@ -18,12 +18,12 @@
 html,body{margin:0;padding:0; overflow-x:hidden;}
 body{
   background:#0B0F14;
-  background-image: linear-gradient(180deg, rgba(11,15,20,.55) 0%, rgba(11,15,20,.78) 55%, rgba(11,15,20,.96) 100%), url('img/hero.png');
+  background-image: linear-gradient(180deg, rgba(11,15,20,.55) 0%, rgba(11,15,20,.85) 60%, var(--bg) 100%), url('img/hero.png');
   background-size: cover;
   background-position: center top;
   background-repeat: no-repeat;
-  background-attachment: fixed;
-  color:var(--text); font-family:'Inter',sans-serif; min-height:100vh; display:flex; flex-direction:column; align-items:center; -webkit-font-smoothing:antialiased;
+  background-attachment: scroll;
+  color:var(--text); font-family:'Inter',sans-serif; min-height:100dvh; display:flex; flex-direction:column; align-items:center; -webkit-font-smoothing:antialiased;
 }
 body::before{content:""; position:fixed; inset:0; background:radial-gradient(circle at 50% -10%, rgba(255,122,48,.14), transparent 45%), radial-gradient(circle at 100% 100%, rgba(45,212,191,.08), transparent 50%), radial-gradient(circle at 0% 60%, rgba(255,122,48,.05), transparent 40%); pointer-events:none; z-index:0;}
 h1,h2,h3,.display{font-family:'Space Grotesk',sans-serif;}
@@ -148,11 +148,12 @@ select:disabled, input:disabled{opacity:.4; cursor:not-allowed;}
   margin-left:-50vw; margin-right:-50vw;
   width:100vw; max-width:100vw;
   padding:0;
+  background:var(--bg);
 }
 .gate{
-  position:relative; display:flex; flex-direction:column; align-items:center; justify-content:flex-start; min-height:100vh; gap:0; text-align:center; padding:64px 24px 48px; overflow:hidden;
+  position:relative; display:flex; flex-direction:column; align-items:center; justify-content:flex-start; min-height:100dvh; gap:0; text-align:center; padding:64px 24px 64px; overflow:hidden;
 }
-.gate-atmosphere{position:absolute; inset:0; z-index:0; overflow:hidden; pointer-events:none;}
+.gate-atmosphere{position:absolute; inset:0; z-index:0; overflow:hidden; pointer-events:none; background:var(--bg);}
 .gate-atmosphere .stars{position:absolute; inset:0;
   background-image:
     radial-gradient(1.5px 1.5px at 12% 22%, rgba(237,241,245,.55), transparent),
@@ -167,7 +168,7 @@ select:disabled, input:disabled{opacity:.4; cursor:not-allowed;}
     radial-gradient(1px 1px at 6% 45%, rgba(237,241,245,.3), transparent);
   opacity:.8;
 }
-.gate-atmosphere .horizon{position:absolute; left:0; right:0; bottom:0; height:45%; background:linear-gradient(to bottom, transparent, rgba(11,15,20,.9) 70%, var(--bg));}
+.gate-atmosphere .horizon{position:absolute; left:0; right:0; bottom:0; height:60%; background:linear-gradient(to bottom, transparent, rgba(11,15,20,.92) 55%, var(--bg) 100%);}
 .gate-content{position:relative; z-index:1; display:flex; flex-direction:column; align-items:center; gap:28px; width:100%;}
 .logo-mark{width:112px;height:112px; display:flex; align-items:center; justify-content:center; position:relative;}
 .logo-mark::before{content:""; position:absolute; inset:-16px; border-radius:50%; box-shadow:0 0 0 1px rgba(255,176,102,.3), 0 0 44px 10px rgba(255,122,48,.28); animation:glowpulse 3.4s ease-in-out infinite;}
@@ -193,6 +194,13 @@ select:disabled, input:disabled{opacity:.4; cursor:not-allowed;}
 .match-bar-row{display:flex; align-items:center; gap:10px; font-size:12px;}
 .match-bar{flex:1; height:6px; background:var(--line); border-radius:4px; overflow:hidden;}
 .match-bar > div{height:100%; background:linear-gradient(90deg,var(--current),var(--diode-glow));}
+
+.riasec-vector{display:flex; flex-direction:column; gap:8px; margin-top:16px; text-align:left;}
+.riasec-vector .rv-row{display:flex; align-items:center; gap:8px; font-size:11.5px;}
+.riasec-vector .rv-key{width:20px; flex:0 0 auto; font-family:'JetBrains Mono',monospace; color:var(--diode-glow); font-weight:700; text-align:center;}
+.riasec-vector .rv-bar{flex:1; height:6px; background:var(--line); border-radius:4px; overflow:hidden;}
+.riasec-vector .rv-bar > div{height:100%; background:linear-gradient(90deg,var(--current),var(--diode-glow));}
+.riasec-vector .rv-val{width:34px; flex:0 0 auto; font-family:'JetBrains Mono',monospace; color:var(--text-dim); text-align:right;}
 
 .plan-step{display:flex; gap:14px; border:1px solid var(--line); background:var(--surface); border-radius:14px; padding:16px; transition:border-color .2s var(--ease), transform .2s var(--ease);}
 .plan-step:hover{border-color:var(--diode-glow); transform:translateY(-1px);}
@@ -408,7 +416,7 @@ select:disabled, input:disabled{opacity:.4; cursor:not-allowed;}
       <label>¿Ya tienes una carrera en mente? (opcional)</label>
       <input type="text" id="inCarreraDeseada" placeholder="Escribe la carrera que quieres estudiar" autocomplete="off">
       <div class="autocomplete-list" id="acCarreras"></div>
-      <span class="sub" style="font-size:12px;">Si la dejas vacía, Diodo te la sugiere según tus respuestas del paso anterior.</span>
+      <span class="sub" style="font-size:12px;">Si la dejas vacía, Diodo te la sugiere según tus respuestas del paso anterior. Si escribes una y sigues sin elegir una sugerencia, igual la tomamos en cuenta.</span>
     </div>
 
     <div class="field">
@@ -443,6 +451,7 @@ select:disabled, input:disabled{opacity:.4; cursor:not-allowed;}
       </div>
       <div class="tag-row" id="matchRasgos" style="margin-top:14px; justify-content:center;"></div>
       <p class="sub" id="matchConfianza" style="margin-top:8px; font-size:11.5px;"></p>
+      <div class="riasec-vector" id="matchVector"></div>
     </div>
 
     <p class="sub">También harías un buen "match" con estas opciones, ordenadas por afinidad real con tus respuestas. Puedes elegir otra si prefieres:</p>
@@ -761,55 +770,58 @@ async function cargarDistritos(provId){
   DB.distritosPorProv[provId] = data;
   return data;
 }
-// Preguntas psicométricas adicionales (modelo RIASEC, con varias preguntas
-// situacionales cortas por rasgo en vez de una sola pregunta abstracta) que
-// se suman SIEMPRE a las preguntas que existan en Supabase. La idea es tener
-// más señal por rasgo — varias preguntas cortas y concretas miden mejor que
-// una sola pregunta larga, y además reducen el ruido de una sola respuesta
-// "al voleo". Si en el futuro agregas preguntas a Supabase con estas mismas
-// claves, las tuyas tienen prioridad y estas no se duplican.
-//
-// Convención de claves: las preguntas de un mismo rasgo comparten el mismo
-// prefijo y terminan en _1, _2, _3... (ej. riasec_realista_1). Al calcular
-// el match, todas las respuestas de un mismo rasgo se promedian entre sí
-// (ver getTraitScores), así que puedes agregar o quitar preguntas de un
-// rasgo sin tocar el resto del código.
+
+/* =====================================================================
+   PREGUNTAS — modelo RIASEC puro (6 dimensiones)
+   =====================================================================
+   Antes había 18 preguntas RIASEC + 4 preguntas "extra" (estilo_equipo,
+   comodidad_numeros, autonomia, variedad_rutina) que NO pertenecían a
+   ninguna de las 6 dimensiones y contaminaban el vector.
+
+   Ahora se conserva la MISMA CANTIDAD TOTAL de preguntas (22), pero las
+   22 se agrupan exclusivamente en los 6 temas RIASEC: Realista,
+   Investigador, Artístico, Social, Emprendedor, Convencional. Las 4
+   preguntas que sobraban se reescribieron como preguntas RIASEC nuevas
+   (situaciones concretas, no rasgos genéricos de "estilo de trabajo"),
+   así el vector del alumno queda siempre V_e = [R, I, A, S, E, C].
+
+   Convención de claves: mismo prefijo + sufijo _1, _2, _3... Al calcular
+   el match, todas las respuestas de un mismo prefijo se combinan en un
+   solo componente del vector (ver construirVectorRIASEC). */
 const PREGUNTAS_EXTRA = [
-  // Realista: manos a la obra, técnico, físico
+  // R — Realista (4 preguntas): manos a la obra, técnico, físico
   { clave:'riasec_realista_1', titulo:'Manos a la obra', subtitulo:'Prefiero arreglar algo con mis manos antes que solo leer cómo se hace.' },
   { clave:'riasec_realista_2', titulo:'Manos a la obra', subtitulo:'Me gusta trabajar con herramientas, máquinas o equipos.' },
   { clave:'riasec_realista_3', titulo:'Manos a la obra', subtitulo:'Prefiero estar en movimiento o al aire libre antes que sentado en una oficina.' },
+  { clave:'riasec_realista_4', titulo:'Manos a la obra', subtitulo:'Si algo se rompe en casa, prefiero intentar repararlo yo mismo antes de llamar a alguien.' },
 
-  // Investigador: análisis, curiosidad, lógica
+  // I — Investigador (4 preguntas): análisis, curiosidad, lógica
   { clave:'riasec_investigador_1', titulo:'Curiosidad y análisis', subtitulo:'Me gusta entender por qué las cosas funcionan como funcionan.' },
   { clave:'riasec_investigador_2', titulo:'Curiosidad y análisis', subtitulo:'Disfruto resolver acertijos, problemas lógicos o rompecabezas.' },
   { clave:'riasec_investigador_3', titulo:'Curiosidad y análisis', subtitulo:'Prefiero investigar a fondo un tema antes de opinar sobre él.' },
+  { clave:'riasec_investigador_4', titulo:'Curiosidad y análisis', subtitulo:'Me siento cómodo usando datos, cifras o experimentos para tomar una decisión.' },
 
-  // Artístico: creatividad, expresión
+  // A — Artístico (3 preguntas): creatividad, expresión
   { clave:'riasec_artistico_1', titulo:'Creatividad', subtitulo:'Me gusta crear cosas originales: dibujos, textos, música o diseños.' },
   { clave:'riasec_artistico_2', titulo:'Creatividad', subtitulo:'Prefiero tareas donde me pueda expresar libremente, sin reglas fijas.' },
   { clave:'riasec_artistico_3', titulo:'Creatividad', subtitulo:'Disfruto imaginar ideas nuevas más que seguir instrucciones exactas.' },
 
-  // Social: ayudar, enseñar, cuidar
+  // S — Social (4 preguntas): ayudar, enseñar, cuidar
   { clave:'riasec_social_1', titulo:'Ayudar a otros', subtitulo:'Me gusta ayudar a otras personas a resolver sus problemas.' },
   { clave:'riasec_social_2', titulo:'Ayudar a otros', subtitulo:'Disfruto explicarle algo a alguien hasta que lo entienda.' },
   { clave:'riasec_social_3', titulo:'Ayudar a otros', subtitulo:'Me preocupo genuinamente por el bienestar de las personas a mi alrededor.' },
+  { clave:'riasec_social_4', titulo:'Ayudar a otros', subtitulo:'Prefiero trabajar coordinando con un equipo antes que resolver todo yo solo.' },
 
-  // Emprendedor: liderar, persuadir, iniciar
+  // E — Emprendedor (4 preguntas): liderar, persuadir, iniciar
   { clave:'riasec_emprendedor_1', titulo:'Liderar e iniciar', subtitulo:'Me gusta convencer a otros de mis ideas.' },
   { clave:'riasec_emprendedor_2', titulo:'Liderar e iniciar', subtitulo:'Disfruto tomar la iniciativa cuando nadie más lo hace.' },
   { clave:'riasec_emprendedor_3', titulo:'Liderar e iniciar', subtitulo:'Me atrae la idea de tener mi propio negocio algún día.' },
+  { clave:'riasec_emprendedor_4', titulo:'Liderar e iniciar', subtitulo:'Prefiero decidir yo mismo cómo hacer las cosas, sin que me digan paso a paso.' },
 
-  // Convencional: orden, estructura, datos
+  // C — Convencional (3 preguntas): orden, estructura, datos
   { clave:'riasec_convencional_1', titulo:'Orden y estructura', subtitulo:'Me siento cómodo con reglas claras y tareas bien organizadas.' },
   { clave:'riasec_convencional_2', titulo:'Orden y estructura', subtitulo:'Disfruto ordenar información, archivos o datos de forma precisa.' },
   { clave:'riasec_convencional_3', titulo:'Orden y estructura', subtitulo:'Prefiero seguir un método probado antes que improvisar.' },
-
-  // Estilo de trabajo (no son RIASEC, pero afinan el match)
-  { clave:'estilo_equipo',     titulo:'Estilo de trabajo', subtitulo:'Prefiero trabajar en equipo, coordinando con otras personas, antes que trabajar solo.' },
-  { clave:'comodidad_numeros', titulo:'Estilo de trabajo', subtitulo:'Me siento cómodo usando matemáticas o números en mi día a día.' },
-  { clave:'autonomia',         titulo:'Estilo de trabajo', subtitulo:'Prefiero decidir yo mismo cómo hacer las cosas, sin que me digan paso a paso.' },
-  { clave:'variedad_rutina',   titulo:'Estilo de trabajo', subtitulo:'Prefiero un trabajo con tareas variadas antes que siempre la misma rutina.' },
 ];
 async function cargarPreguntas(){
   const { data, error } = await sb.from('preguntas_test').select('*').order('orden');
@@ -1003,6 +1015,11 @@ function validateAndGo(next){
     if(state.presupuestoCat==='otro' && (!state.presupuestoMonto || state.presupuestoMonto<=0)){
       play('error'); toast('Escribe un monto válido para tu presupuesto.', true); return;
     }
+    // Si el usuario escribió una carrera a mano y todavía no se resolvió
+    // contra el catálogo (autocompletado async o sin seleccionar sugerencia),
+    // lo intentamos resolver aquí mismo antes de avanzar, para no perder
+    // ese dato en el paso de match (ver intentarResolverCarreraEscrita).
+    intentarResolverCarreraEscrita();
   }
   if(state.step===6){
     if(!state.institucionElegida){ play('error'); toast('Selecciona una institución.', true); return; }
@@ -1010,13 +1027,22 @@ function validateAndGo(next){
   goTo(next);
 }
 
-/* ===================== PANTALLA 2: PREGUNTAS CON TRANSICIÓN ===================== */
+/* ===================== PANTALLA 2: PREGUNTAS CON TRANSICIÓN =====================
+   Antes cada opción guardaba directamente un "porcentaje" (0/25/50/75/100)
+   y el match promediaba esos porcentajes tal cual — eso no es un vector,
+   es solo un promedio de opciones elegidas.
+
+   Ahora cada opción guarda una puntuación Likert de 1 a 5 (muy en
+   desacuerdo → muy de acuerdo). Esa puntuación se centra en 0 (restando 3)
+   para construir el componente real del vector V_e = [R,I,A,S,E,C] que
+   se usa en el coseno de similitud (ver construirVectorRIASEC). El label
+   que ve el usuario no cambia, solo cómo se almacena y se calcula. */
 const OPCIONES_5 = [
-  {label:"Nada, no me identifica", val:0},
-  {label:"Poco", val:25},
-  {label:"Algo, depende", val:50},
-  {label:"Bastante", val:75},
-  {label:"Mucho, me encanta", val:100},
+  {label:"Nada, no me identifica", val:1},
+  {label:"Poco", val:2},
+  {label:"Algo, depende", val:3},
+  {label:"Bastante", val:4},
+  {label:"Mucho, me encanta", val:5},
 ];
 let qIndex = 0;
 
@@ -1038,7 +1064,7 @@ function renderQuestion(instant, dir){
       div.className='q-opt';
       const selectedNow = state.hobbies[p.clave]===o.val;
       if(selectedNow) div.classList.add('selected');
-      div.innerHTML = `<span>${escapeHtml(o.label)}</span><span class="qval">${o.val}%</span>`;
+      div.innerHTML = `<span>${escapeHtml(o.label)}</span><span class="qval">${o.val}/5</span>`;
       div.onclick = ()=>{
         play('select');
         state.hobbies[p.clave] = o.val;
@@ -1202,55 +1228,70 @@ inCarrera.addEventListener('keydown', (e)=>{
 });
 function updateAcHover(items){ items.forEach((it,i)=>it.classList.toggle('hover', i===acIndex)); items[acIndex]?.scrollIntoView({block:'nearest'}); }
 document.addEventListener('click', (e)=>{ if(!acBox.contains(e.target) && e.target!==inCarrera){ acBox.classList.remove('show'); } });
+// Si el usuario escribe y se va del campo sin elegir ninguna sugerencia
+// (ni la del autocompletado real, ni una de las recomendadas por el test),
+// igual intentamos resolver el texto contra el catálogo para no perder el
+// dato al pasar al siguiente paso.
+inCarrera.addEventListener('blur', ()=>{ setTimeout(intentarResolverCarreraEscrita, 150); });
 
-/* ===================== LÓGICA DE MATCH (determinística, sobre familias reales de Supabase) =====================
-   Cambios clave respecto a la versión anterior:
+/* ===================== LÓGICA DE MATCH — Coseno de similitud sobre el vector RIASEC =====================
+   V_e = [R, I, A, S, E, C]
 
-   1) AGRUPACIÓN POR RASGO: como ahora hay varias preguntas cortas por rasgo
-      (ej. riasec_realista_1, _2, _3), primero se promedian entre sí
-      (getTraitScores) para obtener un solo puntaje por rasgo. Esto reduce el
-      ruido de una sola respuesta y hace el perfil más estable.
+   1) VECTOR DEL ALUMNO: las respuestas Likert (1-5) de cada pregunta se
+      agrupan por su rasgo (prefijo de la clave, ej. "riasec_realista") y se
+      promedian entre sí (construirVectorRIASEC). El promedio se centra en 0
+      restando 3 y dividiendo entre 2, quedando cada componente del vector
+      en el rango -1..1. Ya NO se trabaja con "porcentaje de opciones": se
+      trabaja con el vector numérico real.
 
-   2) PESOS DE RESPALDO EXPLÍCITOS: si una familia de Supabase no tiene pesos
-      configurados, en vez de adivinarlos con una regex sobre el nombre
-      (frágil: "Ingeniería X" e "Ingeniería Y" recibían el mismo peso), se
-      busca en un diccionario PESOS_RESPALDO con el nombre normalizado de la
-      familia. Es una tabla explícita y editable — lo ideal a futuro es
-      migrarla a la columna `pesos` de `carrera_familias` en Supabase.
+   2) VECTOR DE CADA CARRERA: cada familia de carrera tiene un perfil de
+      pesos por dimensión RIASEC (0..1), ya sea configurado en Supabase
+      (columna `pesos`) o, si no existe, tomado de PESOS_RESPALDO — una
+      tabla explícita y editable, específica por carrera (no una regex
+      genérica sobre el nombre).
 
-   3) SIMILITUD DE COSENO + CONFIANZA: se sigue usando similitud de coseno
-      entre el vector de rasgos del usuario y los pesos de la familia, pero
-      ahora también se calcula una "confianza" (qué tan lejos de neutro
-      estuvieron en promedio las respuestas relevantes). Un 90% de afinidad
-      con confianza baja no es lo mismo que un 90% con confianza alta, y se
-      lo mostramos al usuario para que no sobreinterprete el número.
+   3) EL MATCH: se calcula la similitud de coseno entre ambos vectores de
+      6 componentes. cos(θ) = (V_e · V_c) / (‖V_e‖ ‖V_c‖). El resultado
+      (-1..1) se reescala a 0-100% solo para mostrarlo en la interfaz.
 
-   4) EXPLICABILIDAD: cada resultado guarda los 2 rasgos que más pesan en esa
-      familia, para poder mostrar "Coincide en: Análisis, Orden y estructura"
-      en vez de solo un porcentaje sin contexto. */
+   4) CONFIANZA: además del coseno, se calcula qué tan lejos de "neutro"
+      estuvieron en promedio las respuestas relevantes para esa carrera.
+      Respuestas todas en "Algo, depende" (3/5) dan una confianza baja
+      aunque el coseno salga alto, y se lo mostramos al usuario. */
 
-// Nombres legibles de cada rasgo, para mostrarlos en la UI.
+// Nombres legibles de las 6 dimensiones, para mostrarlas en la UI.
 const NOMBRES_RASGOS = {
-  riasec_realista:'Manos a la obra', riasec_investigador:'Análisis', riasec_artistico:'Creatividad',
-  riasec_social:'Ayudar a otros', riasec_emprendedor:'Liderazgo', riasec_convencional:'Orden y estructura',
-  estilo_equipo:'Trabajo en equipo', comodidad_numeros:'Números', autonomia:'Autonomía', variedad_rutina:'Variedad'
+  riasec_realista:'Realista (manos a la obra)',
+  riasec_investigador:'Investigador (análisis)',
+  riasec_artistico:'Artístico (creatividad)',
+  riasec_social:'Social (ayudar a otros)',
+  riasec_emprendedor:'Emprendedor (liderazgo)',
+  riasec_convencional:'Convencional (orden y estructura)',
 };
+const ORDEN_RASGOS = ['riasec_realista','riasec_investigador','riasec_artistico','riasec_social','riasec_emprendedor','riasec_convencional'];
+const LETRA_RASGO = { riasec_realista:'R', riasec_investigador:'I', riasec_artistico:'A', riasec_social:'S', riasec_emprendedor:'E', riasec_convencional:'C' };
 
-// Agrupa las respuestas por rasgo (quitando el sufijo _1, _2, _3...) y
-// promedia cada grupo, para que varias preguntas cortas de un mismo rasgo
-// cuenten como una sola señal más confiable.
-function getTraitScores(hobbies){
+// Agrupa las respuestas Likert (1-5) por rasgo (quitando el sufijo _1, _2,
+// _3...), promedia cada grupo y lo centra en 0 (rango -1..1). Ese es el
+// componente real del vector V_e = [R,I,A,S,E,C] — ya no un "porcentaje
+// de la opción elegida", sino un valor de álgebra lineal listo para el
+// coseno de similitud.
+function construirVectorRIASEC(hobbies){
   const grupos = {};
-  Object.entries(hobbies).forEach(([clave, valor])=>{
+  Object.entries(hobbies).forEach(([clave, valorLikert])=>{
     const rasgo = clave.replace(/_\d+$/, '');
+    if(!ORDEN_RASGOS.includes(rasgo)) return; // ignora cualquier clave que no sea RIASEC
     if(!grupos[rasgo]) grupos[rasgo] = [];
-    grupos[rasgo].push(valor);
+    grupos[rasgo].push(valorLikert);
   });
-  const promedios = {};
-  Object.entries(grupos).forEach(([rasgo, valores])=>{
-    promedios[rasgo] = valores.reduce((a,b)=>a+b, 0) / valores.length;
+  const vector = {};
+  ORDEN_RASGOS.forEach(rasgo=>{
+    const valores = grupos[rasgo];
+    if(!valores || !valores.length){ vector[rasgo] = null; return; } // sin respuestas todavía
+    const promedio = valores.reduce((a,b)=>a+b,0) / valores.length; // 1..5
+    vector[rasgo] = (promedio - 3) / 2; // centrado en 0, rango -1..1
   });
-  return promedios;
+  return vector;
 }
 
 // Quita tildes y normaliza mayúsculas/espacios para comparar nombres de
@@ -1261,19 +1302,18 @@ function normalizarNombre(str){
     .toLowerCase().trim();
 }
 
-// Pesos de respaldo para familias de carreras comunes en el Perú. Se usan
-// SOLO si la familia no trae sus propios pesos desde Supabase. Cada entrada
-// es específica de la carrera (no una regex genérica), por lo que da un
-// perfil mucho más preciso que adivinar por palabras clave del nombre.
+// Pesos de respaldo por carrera, restringidos a las 6 dimensiones RIASEC
+// (0..1 = qué tanto pesa esa dimensión en el perfil de la carrera). Se usan
+// SOLO si la familia no trae sus propios pesos desde Supabase.
 const PESOS_RESPALDO = {
-  'ingenieria de sistemas': { riasec_investigador:0.9, riasec_realista:0.5, riasec_convencional:0.5, comodidad_numeros:0.9 },
-  'ingenieria informatica': { riasec_investigador:0.9, riasec_realista:0.5, riasec_convencional:0.5, comodidad_numeros:0.9 },
-  'ingenieria de software': { riasec_investigador:0.85, riasec_convencional:0.4, comodidad_numeros:0.85 },
-  'ingenieria civil': { riasec_realista:0.9, riasec_investigador:0.6, comodidad_numeros:0.7 },
-  'ingenieria industrial': { riasec_convencional:0.8, riasec_investigador:0.6, riasec_emprendedor:0.4, comodidad_numeros:0.8 },
-  'ingenieria electronica': { riasec_realista:0.85, riasec_investigador:0.75, comodidad_numeros:0.8 },
-  'ingenieria mecatronica': { riasec_realista:0.85, riasec_investigador:0.7, comodidad_numeros:0.75 },
-  'ingenieria mecanica': { riasec_realista:0.9, riasec_investigador:0.6, comodidad_numeros:0.7 },
+  'ingenieria de sistemas': { riasec_investigador:0.9, riasec_realista:0.4, riasec_convencional:0.6 },
+  'ingenieria informatica': { riasec_investigador:0.9, riasec_realista:0.4, riasec_convencional:0.6 },
+  'ingenieria de software': { riasec_investigador:0.85, riasec_convencional:0.5, riasec_realista:0.3 },
+  'ingenieria civil': { riasec_realista:0.9, riasec_investigador:0.6, riasec_convencional:0.5 },
+  'ingenieria industrial': { riasec_convencional:0.8, riasec_investigador:0.6, riasec_emprendedor:0.4 },
+  'ingenieria electronica': { riasec_realista:0.85, riasec_investigador:0.75, riasec_convencional:0.3 },
+  'ingenieria mecatronica': { riasec_realista:0.85, riasec_investigador:0.7, riasec_convencional:0.3 },
+  'ingenieria mecanica': { riasec_realista:0.9, riasec_investigador:0.6, riasec_convencional:0.3 },
   'ingenieria ambiental': { riasec_realista:0.6, riasec_investigador:0.7, riasec_social:0.4 },
   'arquitectura': { riasec_artistico:0.8, riasec_realista:0.6, riasec_investigador:0.4 },
   'medicina humana': { riasec_social:0.85, riasec_investigador:0.7, riasec_realista:0.3 },
@@ -1282,19 +1322,19 @@ const PESOS_RESPALDO = {
   'obstetricia': { riasec_social:0.9, riasec_realista:0.4 },
   'nutricion': { riasec_social:0.7, riasec_investigador:0.5, riasec_convencional:0.3 },
   'psicologia': { riasec_social:0.9, riasec_investigador:0.5 },
-  'educacion': { riasec_social:0.9, riasec_artistico:0.3, estilo_equipo:0.5 },
-  'pedagogia': { riasec_social:0.9, riasec_artistico:0.3, estilo_equipo:0.5 },
+  'educacion': { riasec_social:0.9, riasec_artistico:0.3, riasec_emprendedor:0.2 },
+  'pedagogia': { riasec_social:0.9, riasec_artistico:0.3, riasec_emprendedor:0.2 },
   'trabajo social': { riasec_social:0.95, riasec_emprendedor:0.3 },
   'derecho': { riasec_emprendedor:0.6, riasec_convencional:0.6, riasec_social:0.4 },
   'ciencias politicas': { riasec_emprendedor:0.6, riasec_social:0.5, riasec_investigador:0.5 },
   'relaciones internacionales': { riasec_emprendedor:0.6, riasec_social:0.5, riasec_investigador:0.5 },
-  'administracion de empresas': { riasec_emprendedor:0.85, estilo_equipo:0.5, riasec_convencional:0.4 },
-  'administracion': { riasec_emprendedor:0.8, estilo_equipo:0.5, riasec_convencional:0.4 },
-  'marketing': { riasec_emprendedor:0.8, riasec_artistico:0.5, estilo_equipo:0.4 },
-  'negocios internacionales': { riasec_emprendedor:0.8, comodidad_numeros:0.5, estilo_equipo:0.4 },
-  'contabilidad': { riasec_convencional:0.9, comodidad_numeros:0.85 },
-  'economia': { riasec_investigador:0.7, riasec_convencional:0.6, comodidad_numeros:0.8 },
-  'finanzas': { riasec_convencional:0.7, comodidad_numeros:0.85, riasec_emprendedor:0.4 },
+  'administracion de empresas': { riasec_emprendedor:0.85, riasec_convencional:0.5, riasec_social:0.3 },
+  'administracion': { riasec_emprendedor:0.8, riasec_convencional:0.5, riasec_social:0.3 },
+  'marketing': { riasec_emprendedor:0.8, riasec_artistico:0.5, riasec_social:0.3 },
+  'negocios internacionales': { riasec_emprendedor:0.8, riasec_convencional:0.4, riasec_social:0.3 },
+  'contabilidad': { riasec_convencional:0.9, riasec_investigador:0.4 },
+  'economia': { riasec_investigador:0.7, riasec_convencional:0.6, riasec_emprendedor:0.3 },
+  'finanzas': { riasec_convencional:0.7, riasec_investigador:0.5, riasec_emprendedor:0.4 },
   'diseno grafico': { riasec_artistico:0.95, riasec_realista:0.3 },
   'diseno de interiores': { riasec_artistico:0.9, riasec_realista:0.4 },
   'diseno de modas': { riasec_artistico:0.9, riasec_emprendedor:0.3 },
@@ -1304,8 +1344,8 @@ const PESOS_RESPALDO = {
   'ciencias de la comunicacion': { riasec_artistico:0.6, riasec_social:0.5, riasec_emprendedor:0.4 },
   'periodismo': { riasec_artistico:0.5, riasec_investigador:0.5, riasec_social:0.5 },
   'publicidad': { riasec_artistico:0.7, riasec_emprendedor:0.6 },
-  'turismo y hoteleria': { riasec_social:0.6, riasec_emprendedor:0.5, estilo_equipo:0.6 },
-  'gastronomia': { riasec_realista:0.6, riasec_artistico:0.6, estilo_equipo:0.4 },
+  'turismo y hoteleria': { riasec_social:0.6, riasec_emprendedor:0.5, riasec_convencional:0.3 },
+  'gastronomia': { riasec_realista:0.6, riasec_artistico:0.6, riasec_social:0.3 },
   'agronomia': { riasec_realista:0.85, riasec_investigador:0.6 },
   'veterinaria': { riasec_realista:0.7, riasec_social:0.5, riasec_investigador:0.5 },
   'biologia': { riasec_investigador:0.9, riasec_realista:0.4 },
@@ -1320,39 +1360,47 @@ function buscarPesosRespaldo(nombreFamilia){
   return claveParecida ? PESOS_RESPALDO[claveParecida] : null;
 }
 
-// Similitud de coseno entre los rasgos del usuario (ya promediados y
-// centrados en 0) y los pesos de una familia. Además de la afinidad (0-100),
-// devuelve una confianza (0-100): qué tan lejos de neutro (50) estuvieron en
-// promedio las respuestas usadas para este cálculo. Respuestas todas cerca
-// de "Algo, depende" dan una confianza baja aunque el coseno salga alto.
-function cosineScoreConConfianza(traitScores, pesos){
-  const keys = Object.keys(pesos||{});
+// Filtra del vector de pesos de una familia solo las claves RIASEC válidas
+// (por si Supabase trae claves antiguas como comodidad_numeros, etc.), para
+// que el vector de la carrera también sea puramente [R,I,A,S,E,C].
+function filtrarPesosRIASEC(pesos){
+  const limpio = {};
+  ORDEN_RASGOS.forEach(r=>{ if(pesos && pesos[r]!==undefined) limpio[r] = pesos[r]; });
+  return limpio;
+}
+
+// Similitud de coseno pura entre dos vectores de igual dimensión (álgebra
+// lineal real: cos(θ) = (A·B) / (‖A‖‖B‖)), más una confianza (0-100) según
+// qué tan lejos de neutro estuvieron en promedio las respuestas usadas.
+function cosineScoreConConfianza(vectorAlumno, pesosCarrera){
+  const keys = Object.keys(pesosCarrera||{});
   if(!keys.length) return null;
-  let dot=0, magUser=0, magFam=0, sumDistancia=0;
+  let dot=0, magAlumno=0, magCarrera=0, sumDistancia=0, nConRespuesta=0;
   keys.forEach(key=>{
-    const valor = traitScores[key] ?? 50;
-    const centrado = (valor-50)/50; // -1..1, neutro si no se respondió
-    const peso = pesos[key];
-    dot += centrado*peso;
-    magUser += centrado*centrado;
-    magFam += peso*peso;
-    sumDistancia += Math.abs(centrado);
+    const componente = vectorAlumno[key]; // -1..1, o null si no respondió aún
+    const valor = componente===null || componente===undefined ? 0 : componente;
+    const peso = pesosCarrera[key];
+    dot += valor*peso;
+    magAlumno += valor*valor;
+    magCarrera += peso*peso;
+    if(componente!==null && componente!==undefined){ sumDistancia += Math.abs(componente); nConRespuesta++; }
   });
-  const confianza = Math.round((sumDistancia/keys.length)*100);
-  if(magUser===0 || magFam===0) return { pct:50, confianza };
-  const cos = dot/(Math.sqrt(magUser)*Math.sqrt(magFam));
+  const confianza = nConRespuesta ? Math.round((sumDistancia/nConRespuesta)*100) : 0;
+  if(magAlumno===0 || magCarrera===0) return { pct:50, confianza };
+  const cos = dot/(Math.sqrt(magAlumno)*Math.sqrt(magCarrera));
   return { pct: Math.round(((cos+1)/2)*100), confianza };
 }
 
 function computeMatches(){
-  const traitScores = getTraitScores(state.hobbies);
+  const vectorAlumno = construirVectorRIASEC(state.hobbies);
   return DB.familias.map(fam=>{
-    const tienePesosPropios = fam.pesos && Object.keys(fam.pesos).length>0;
-    const pesos = tienePesosPropios ? fam.pesos : buscarPesosRespaldo(fam.nombre);
+    const pesosPropios = filtrarPesosRIASEC(fam.pesos);
+    const tienePesosPropios = Object.keys(pesosPropios).length>0;
+    const pesos = tienePesosPropios ? pesosPropios : buscarPesosRespaldo(fam.nombre);
     if(!pesos){
       return { id:fam.id, nombre:fam.nombre, pct:50, confianza:0, sinDatos:true, rasgos:[] };
     }
-    const resultado = cosineScoreConConfianza(traitScores, pesos);
+    const resultado = cosineScoreConConfianza(vectorAlumno, pesos);
     const rasgosOrdenados = Object.entries(pesos)
       .sort((a,b)=>b[1]-a[1])
       .slice(0,2)
@@ -1360,9 +1408,49 @@ function computeMatches(){
     return { id:fam.id, nombre:fam.nombre, pct:resultado.pct, confianza:resultado.confianza, sinDatos:false, rasgos:rasgosOrdenados };
   }).sort((a,b)=>b.pct-a.pct);
 }
+
+// Busca, por similitud de nombre, la familia de carrera del catálogo más
+// parecida a un texto libre (lo que escribió el usuario, o el nombre
+// elegido como carrera final). Se usa tanto para no perder el match cuando
+// el usuario escribe una carrera sin seleccionar sugerencia, como en el
+// paso 5 para mostrar sueldos/demanda aproximados.
+function buscarFamiliaAproximada(nombreCarrera){
+  if(!nombreCarrera) return null;
+  const norm = normalizarNombre(nombreCarrera);
+  if(!norm) return null;
+  let mejor = null;
+  DB.familias.forEach(fam=>{
+    if(mejor) return;
+    const normFam = normalizarNombre(fam.nombre);
+    if(normFam===norm || normFam.includes(norm) || norm.includes(normFam)){
+      mejor = fam;
+    }
+  });
+  return mejor;
+}
+
+// FIX: antes, si el usuario escribía una carrera a mano en el paso 3 y no
+// alcanzaba a elegir ninguna sugerencia (ni del autocompletado real ni de
+// las recomendadas por el test) antes de avanzar de pantalla, ese texto
+// quedaba como "personalizado" sin ningún match calculado — se perdía el
+// valor del coseno de similitud para el siguiente paso. Esta función corre
+// al salir del campo (blur) y al validar el paso 3, e intenta resolver el
+// texto escrito contra el catálogo real de familias por similitud de
+// nombre, para que el match SIEMPRE se calcule cuando sea posible.
+function intentarResolverCarreraEscrita(){
+  if(!state.carreraDeseada || state.carreraDeseadaFamiliaId) return; // vacío, o ya resuelto
+  const fam = buscarFamiliaAproximada(state.carreraDeseada);
+  if(fam){ state.carreraDeseadaFamiliaId = fam.id; }
+}
+
 // Calcula cuál debería ser la carrera "principal" por defecto (antes de que
 // el usuario elija explícitamente una alternativa).
 function computeDefaultPrincipal(ranked){
+  if(state.carreraDeseada && !state.carreraDeseadaFamiliaId){
+    // Último intento de resolver el texto libre contra el catálogo antes
+    // de resignarnos a mostrarlo sin porcentaje de afinidad.
+    intentarResolverCarreraEscrita();
+  }
   if(state.carreraDeseada && state.carreraDeseadaFamiliaId){
     return ranked.find(r=>r.id===state.carreraDeseadaFamiliaId) || {nombre:state.carreraDeseada, pct:null, id:'custom', rasgos:[], confianza:null};
   } else if(state.carreraDeseada){
@@ -1390,8 +1478,24 @@ function pintarRasgosYConfianza(item){
   }
   wrapConfianza.textContent = textoConfianza(item.confianza);
 }
+// Dibuja el vector V_e = [R,I,A,S,E,C] del alumno como 6 barras, para que
+// se vea el álgebra lineal detrás del match y no solo un porcentaje final.
+function pintarVectorRIASEC(){
+  const vector = construirVectorRIASEC(state.hobbies);
+  const wrap = document.getElementById('matchVector');
+  wrap.innerHTML = ORDEN_RASGOS.map(r=>{
+    const comp = vector[r]; // -1..1 o null
+    const pct = comp===null ? 0 : Math.round(((comp+1)/2)*100);
+    return `<div class="rv-row" title="${escapeHtml(NOMBRES_RASGOS[r])}">
+      <span class="rv-key">${LETRA_RASGO[r]}</span>
+      <div class="rv-bar"><div style="width:${pct}%;"></div></div>
+      <span class="rv-val">${comp===null?'—':pct+'%'}</span>
+    </div>`;
+  }).join('');
+}
 function renderMatch(){
   const ranked = computeMatches();
+  pintarVectorRIASEC();
 
   // Si el usuario ya había elegido explícitamente una opción (por ejemplo
   // una alternativa) y luego vuelve a esta pantalla, respetamos su elección
@@ -1412,7 +1516,7 @@ function renderMatch(){
     ? "La carrera que tenías en mente es una excelente opción para ti"
     : "Es la opción con mayor afinidad según tus respuestas";
   document.getElementById('matchCarrera').textContent = principal.nombre;
-  document.getElementById('matchCode').textContent = principal.id && principal.id!=='custom' ? 'Match calculado por tu test' : 'Personalizado';
+  document.getElementById('matchCode').textContent = principal.id && principal.id!=='custom' ? 'Match calculado con coseno de similitud (RIASEC)' : 'Personalizado';
 
   const barRow = document.getElementById('matchBarPrincipal').parentElement.parentElement;
   if(principal.pct===null || principal.pct===undefined){ barRow.style.display='none'; }
@@ -1440,7 +1544,7 @@ function renderMatch(){
       state.carreraElegida = alt.nombre; state.carreraElegidaFamiliaId = alt.id;
       state.carreraDeseada = '';
       document.getElementById('matchCarrera').textContent = alt.nombre;
-      document.getElementById('matchCode').textContent = 'Match calculado por tu test';
+      document.getElementById('matchCode').textContent = 'Match calculado con coseno de similitud (RIASEC)';
       document.getElementById('matchSub').textContent = "Es la opción con mayor afinidad según tus respuestas";
       const br = document.getElementById('matchBarPrincipal').parentElement.parentElement;
       br.style.display='flex';
@@ -1455,31 +1559,13 @@ function renderMatch(){
 }
 
 /* ===================== PANTALLA 5: REALIDAD (leída de carrera_detalle, actualizada por Gemini) ===================== */
-// Si el usuario eligió/escribió una carrera sin familia_id exacta (por
-// ejemplo, escribió el nombre a mano en el paso 3), buscamos la familia más
-// parecida por nombre para no perder los datos de sueldos/demanda/ambitos.
-function buscarDetalleAproximado(nombreCarrera){
-  if(!nombreCarrera) return null;
-  const norm = normalizarNombre(nombreCarrera);
-  if(!norm) return null;
-  let mejor = null;
-  DB.familias.forEach(fam=>{
-    if(mejor) return;
-    const normFam = normalizarNombre(fam.nombre);
-    if(normFam===norm || normFam.includes(norm) || norm.includes(normFam)){
-      const det = DB.detallePorFamilia[fam.id];
-      if(det) mejor = { detalle:det, nombreFamilia:fam.nombre };
-    }
-  });
-  return mejor;
-}
 function renderRealidad(){
   document.getElementById('carreraNombre5').textContent = state.carreraElegida;
   let detalle = state.carreraElegidaFamiliaId ? DB.detallePorFamilia[state.carreraElegidaFamiliaId] : null;
   let esAproximado = false;
   if(!detalle){
-    const aprox = buscarDetalleAproximado(state.carreraElegida);
-    if(aprox){ detalle = aprox.detalle; esAproximado = true; }
+    const aprox = buscarFamiliaAproximada(state.carreraElegida);
+    if(aprox && DB.detallePorFamilia[aprox.id]){ detalle = DB.detallePorFamilia[aprox.id]; esAproximado = true; }
   }
   if(!detalle){
     document.getElementById('carreraDesc5').textContent = "Aún no tenemos el detalle actualizado de esta carrera en la base de datos — nuestro sistema con IA lo generará pronto. Mientras tanto, revisa las instituciones disponibles en el siguiente paso.";
