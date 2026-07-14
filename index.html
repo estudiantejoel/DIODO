@@ -1199,6 +1199,14 @@ inCarrera.addEventListener('input', ()=>{
     const results = await buscarCarrerasAutocomplete(term);
     if(myRequestId !== acRequestId) return;
     acItemsCache = results; acIndex=-1;
+    // FIX: si lo que escribió coincide EXACTO (ignorando tildes/mayúsculas)
+    // con una carrera real del catálogo, la damos por resuelta de una vez,
+    // aunque el usuario no llegue a hacer clic en la sugerencia. Antes esto
+    // solo pasaba al elegir del dropdown, y si el usuario tipeaba el nombre
+    // correcto y avanzaba sin clickear, se perdía el familia_id y el match
+    // terminaba mostrándose siempre como "personalizado" sin datos reales.
+    const exacta = results.find(r => normalizarNombre(r.nombre) === normalizarNombre(term));
+    if(exacta){ state.carreraDeseadaFamiliaId = exacta.familia_id; }
     if(!results.length){ acBox.innerHTML = `<div class="ac-empty">Sin coincidencias — puedes escribir el nombre igual, lo tomamos en cuenta.</div>`; return; }
     acBox.innerHTML = results.map((r,i)=>`<div class="ac-item" data-i="${i}">${highlight(r.nombre, term)}</div>`).join('');
     bindAcItems(results, false);
@@ -1217,7 +1225,31 @@ document.addEventListener('click', (e)=>{ if(!acBox.contains(e.target) && e.targ
 // Si el usuario escribe y se va del campo sin elegir ninguna sugerencia del
 // autocompletado real, igual intentamos resolver el texto contra el catálogo
 // para no perder el dato al pasar al siguiente paso.
-inCarrera.addEventListener('blur', ()=>{ setTimeout(intentarResolverCarreraEscrita, 150); });
+inCarrera.addEventListener('blur', ()=>{ setTimeout(resolverCarreraEscritaAlSalir, 150); });
+
+// FIX: al salir del campo, antes de recurrir al fallback por similitud de
+// nombre contra las ~30 familias amplias (que casi nunca coincidía con lo
+// tipeado), probamos primero contra el catálogo real de carreras
+// (carrera_nombres) — la misma fuente que usa el autocompletado, y que sí
+// trae el familia_id correcto para nombres específicos como "Ingeniería
+// Económica". Esto evita que el match termine mostrándose como
+// "personalizado" para carreras que en realidad SÍ están en la base.
+async function resolverCarreraEscritaAlSalir(){
+  if(!state.carreraDeseada || state.carreraDeseadaFamiliaId) return; // vacío, o ya resuelto
+  try{
+    const { data, error } = await sb
+      .from('carrera_nombres')
+      .select('id, nombre, familia_id')
+      .ilike('nombre', `%${state.carreraDeseada}%`)
+      .limit(1);
+    if(!error && data && data.length && data[0].familia_id){
+      state.carreraDeseadaFamiliaId = data[0].familia_id;
+      return;
+    }
+  }catch(e){ console.error('No se pudo resolver la carrera contra el catálogo:', e); }
+  // Último recurso: comparación local contra las familias amplias.
+  intentarResolverCarreraEscrita();
+}
 
 /* ===================== LÓGICA DE MATCH — Coseno de similitud sobre el vector RIASEC =====================
    V_e = [R, I, A, S, E, C]
