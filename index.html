@@ -497,7 +497,7 @@ select:disabled, input:disabled{opacity:.4; cursor:not-allowed;}
 
     <div class="nav-row">
       <button class="btn-ghost" onclick="play('back'); goTo(4);">← Atrás</button>
-      <button class="btn-primary" onclick="play('confirm'); goTo(6);">Ver dónde estudiar</button>
+      <button class="btn-primary" id="btnP5" onclick="play('confirm'); goTo(6);">Ver dónde estudiar</button>
     </div>
   </div>
 
@@ -556,6 +556,7 @@ select:disabled, input:disabled{opacity:.4; cursor:not-allowed;}
 const SUPABASE_URL = "https://fybsukirjnbmdjqogdue.supabase.co";
 const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZ5YnN1a2lyam5ibWRqcW9nZHVlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODIyNjMzMjIsImV4cCI6MjA5NzgzOTMyMn0.vUQhlPrlILiz5EcY7x5tF6x7olqe7Dao7CUDZ1T2S84";
 const EDGE_FN_BUSCAR_INSTITUCIONES = `${SUPABASE_URL}/functions/v1/gemini-buscar-instituciones`;
+const EDGE_FN_GENERAR_DETALLE = `${SUPABASE_URL}/functions/v1/gemini-realidad-carrera`;
 
 const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
@@ -836,6 +837,14 @@ async function cargarFamiliasYDetalle(){
   DB.familias = data;
   const { data: detalles } = await sb.from('carrera_detalle').select('*');
   (detalles||[]).forEach(d=>{ DB.detallePorFamilia[d.carrera_familia_id] = d; });
+  // DIAGNÓSTICO: lista en consola (F12) qué familias todavía no tienen fila
+  // en carrera_detalle, para saber de un vistazo cuáles priorizar en Supabase
+  // en vez de descubrirlo una por una probando el test.
+  const sinDetalle = DB.familias.filter(f => !DB.detallePorFamilia[f.id]);
+  if(sinDetalle.length){
+    console.warn(`⚠️ ${sinDetalle.length} de ${DB.familias.length} carreras NO tienen datos en carrera_detalle (saldrán como "sin datos" en el Paso 5):`);
+    console.table(sinDetalle.map(f=>({ id:f.id, nombre:f.nombre })));
+  }
 }
 async function buscarColegiosPorDistrito(distId){
   if(!distId) return [];
@@ -1618,7 +1627,7 @@ function renderMatch(){
 }
 
 /* ===================== PANTALLA 5: REALIDAD (leída de carrera_detalle, actualizada por Gemini) ===================== */
-function renderRealidad(){
+async function renderRealidad(){
   document.getElementById('carreraNombre5').textContent = state.carreraElegida;
   let detalle = state.carreraElegidaFamiliaId ? DB.detallePorFamilia[state.carreraElegidaFamiliaId] : null;
   let esAproximado = false;
@@ -1626,6 +1635,19 @@ function renderRealidad(){
     const aprox = buscarFamiliaAproximada(state.carreraElegida);
     if(aprox && DB.detallePorFamilia[aprox.id]){ detalle = DB.detallePorFamilia[aprox.id]; esAproximado = true; }
   }
+
+  // FIX: si de plano no hay NADA (ni exacto ni aproximado) y sí sabemos a
+  // qué familia pertenece la carrera elegida, generamos la ficha en el
+  // momento con la IA (Gemini) en vez de mostrar el mensaje de "aún no
+  // tenemos el detalle". El resultado se guarda en Supabase (carrera_detalle)
+  // para que la próxima persona que consulte esa misma carrera ya la
+  // encuentre lista, sin tener que volver a generarla.
+  if(!detalle && state.carreraElegidaFamiliaId){
+    pintarRealidadCargando();
+    detalle = await generarDetalleCarreraConIA(state.carreraElegidaFamiliaId, state.carreraElegida);
+    if(detalle){ DB.detallePorFamilia[state.carreraElegidaFamiliaId] = detalle; }
+  }
+
   if(!detalle){
     document.getElementById('carreraDesc5').textContent = "Aún no tenemos el detalle actualizado de esta carrera en la base de datos — nuestro sistema con IA lo generará pronto. Mientras tanto, revisa las instituciones disponibles en el siguiente paso.";
     document.getElementById('sueldoJunior').textContent = 'S/. —';
@@ -1636,6 +1658,7 @@ function renderRealidad(){
     document.getElementById('cursosClave').innerHTML='';
     document.getElementById('modalidadTags').innerHTML='';
     document.getElementById('fuenteDatos5').textContent='';
+    document.getElementById('btnP5').disabled=false;
     return;
   }
   document.getElementById('carreraDesc5').textContent = detalle.descripcion || '';
@@ -1654,6 +1677,43 @@ function renderRealidad(){
     : (fechaValida
       ? `Datos actualizados con IA · ${new Date(detalle.actualizado_en).toLocaleDateString('es-PE')}`
       : 'Datos generados con IA');
+  document.getElementById('btnP5').disabled=false;
+}
+
+// Estado temporal mientras Gemini genera la ficha por primera vez para una
+// carrera que todavía no existe en carrera_detalle.
+function pintarRealidadCargando(){
+  document.getElementById('carreraDesc5').textContent = 'Generando información actualizada con IA para esta carrera, un momento…';
+  document.getElementById('sueldoJunior').textContent = 'S/. …';
+  document.getElementById('sueldoSenior').textContent = 'S/. …';
+  document.getElementById('demandaBar').style.width='0%';
+  document.getElementById('demandaTxt').textContent = 'Calculando…';
+  document.getElementById('ambitos').innerHTML = '<li>Generando…</li>';
+  document.getElementById('cursosClave').innerHTML='';
+  document.getElementById('modalidadTags').innerHTML='';
+  document.getElementById('fuenteDatos5').textContent='';
+  document.getElementById('btnP5').disabled=true;
+}
+
+// Llama a la Edge Function (Supabase + Gemini) que genera y guarda en
+// carrera_detalle la ficha de UNA carrera puntual. La función solo devuelve
+// un resumen de éxito/error (no el detalle completo), así que después de
+// llamarla leemos la fila recién guardada directo desde Supabase.
+async function generarDetalleCarreraConIA(carreraFamiliaId, nombreCarrera){
+  try{
+    const res = await fetch(EDGE_FN_GENERAR_DETALLE, {
+      method:'POST',
+      headers:{ 'Content-Type':'application/json', 'Authorization':`Bearer ${SUPABASE_ANON_KEY}` },
+      body: JSON.stringify({ carrera_familia_id: carreraFamiliaId, nombre: nombreCarrera })
+    });
+    if(!res.ok) throw new Error('HTTP '+res.status);
+    const { data, error } = await sb.from('carrera_detalle').select('*').eq('carrera_familia_id', carreraFamiliaId).maybeSingle();
+    if(error) throw error;
+    return data || null;
+  }catch(e){
+    console.error('No se pudo generar el detalle de la carrera con IA:', e);
+    return null;
+  }
 }
 
 /* ===================== PANTALLA 6: INSTITUCIONES ===================== */
