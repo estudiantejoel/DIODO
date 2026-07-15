@@ -7,6 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <style>
 :root{
   --bg:#0B0F14; --surface:#121821; --surface-2:#1A222D; --line:#26303C;
@@ -539,7 +540,7 @@ select:disabled, input:disabled{opacity:.4; cursor:not-allowed;}
     <div class="plan-step"><div class="num">01</div><div><h4>Preparación</h4><p id="paso1Txt"></p></div></div>
     <div class="plan-step"><div class="num">02</div><div><h4>Transición</h4><p id="paso2Txt"></p></div></div>
     <div class="plan-step"><div class="num">03</div><div><h4>Inserción laboral</h4><p id="paso3Txt"></p></div></div>
-    <button class="btn-primary" onclick="play('confirm'); toast('Generando PDF...');">⬇ Descargar mi Plan en PDF</button>
+    <button class="btn-primary" onclick="play('confirm'); descargarPlanPDF();">⬇ Descargar mi Plan en PDF</button>
     <button class="btn-ghost" onclick="play('back'); goTo(state.guest?6:7);">← Atrás para modificar</button>
   </div>
 
@@ -1882,6 +1883,84 @@ function renderPlanFinal(){
   document.getElementById('paso3Txt').textContent = detalle && detalle.ambitos?.length
     ? `Para ${state.carreraElegida}, las áreas con mayor crecimiento en el Perú actual son: ${detalle.ambitos[0].toLowerCase()} y proyectos vinculados a transformación digital y sostenibilidad.`
     : `Investiga con la institución elegida las áreas de mayor demanda actual para ${state.carreraElegida} en el mercado peruano.`;
+}
+
+// Genera y descarga un PDF real del Plan de Vida usando jsPDF (cargado
+// desde CDN en el <head>). Si la librería no llegó a cargar (por ejemplo,
+// por falta de conexión o un bloqueador), avisa al usuario en vez de
+// fallar en silencio.
+function descargarPlanPDF(){
+  if(!window.jspdf || !window.jspdf.jsPDF){
+    toast('No se pudo cargar el generador de PDF. Revisa tu conexión e intenta de nuevo.', true);
+    return;
+  }
+  try{
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF({ unit:'mm', format:'a4' });
+    const marginX = 20;
+    let y = 22;
+
+    // ---- Encabezado ----
+    doc.setFillColor(255,122,48); // --diode
+    doc.rect(0, 0, 210, 12, 'F');
+    doc.setFontSize(20);
+    doc.setTextColor(20,20,20);
+    doc.text('Diodo — Tu Plan de Vida', marginX, y);
+    y += 10;
+
+    doc.setFontSize(11);
+    doc.setTextColor(90,90,90);
+    doc.text(`Generado el ${new Date().toLocaleDateString('es-PE')}`, marginX, y);
+    y += 12;
+
+    // ---- Datos del estudiante ----
+    doc.setFontSize(13);
+    doc.setTextColor(20,20,20);
+    doc.text(`${state.nombre||''} ${state.apellido||''}`.trim() || 'Estudiante', marginX, y);
+    y += 7;
+    doc.setFontSize(11);
+    doc.setTextColor(90,90,90);
+    doc.text(`Carrera elegida: ${state.carreraElegida||'—'}`, marginX, y); y += 6;
+    doc.text(`Institución: ${state.institucionElegida||'—'}`, marginX, y); y += 6;
+    doc.text(`Destino: ${state.destinoProv?state.destinoProv+', ':''}${state.destino||'—'}`, marginX, y); y += 10;
+
+    // ---- Línea separadora ----
+    doc.setDrawColor(220,220,220);
+    doc.line(marginX, y, 190, y);
+    y += 10;
+
+    // ---- Pasos del plan ----
+    const pasos = [
+      { titulo:'01. Preparación', texto: document.getElementById('paso1Txt')?.textContent || '' },
+      { titulo:'02. Transición', texto: document.getElementById('paso2Txt')?.textContent || '' },
+      { titulo:'03. Inserción laboral', texto: document.getElementById('paso3Txt')?.textContent || '' },
+    ];
+
+    pasos.forEach(p=>{
+      if(y > 260){ doc.addPage(); y = 22; }
+      doc.setFontSize(13);
+      doc.setTextColor(255,122,48);
+      doc.text(p.titulo, marginX, y);
+      y += 7;
+      doc.setFontSize(11);
+      doc.setTextColor(50,50,50);
+      const lineas = doc.splitTextToSize(p.texto, 170);
+      doc.text(lineas, marginX, y);
+      y += lineas.length * 5.5 + 8;
+    });
+
+    // ---- Pie de página ----
+    doc.setFontSize(9);
+    doc.setTextColor(150,150,150);
+    doc.text('Generado con Diodo — diodo-five.vercel.app', marginX, 287);
+
+    const nombreArchivo = `Plan-Diodo-${(state.nombre||'estudiante').replace(/\s+/g,'-')}.pdf`;
+    doc.save(nombreArchivo);
+    toast('PDF descargado.');
+  }catch(e){
+    console.error('Error generando PDF:', e);
+    toast('No se pudo generar el PDF.', true);
+  }
 }
 
 /* ===================== INIT ===================== */
