@@ -207,6 +207,23 @@ select:disabled, input:disabled{opacity:.4; cursor:not-allowed;}
 .plan-step .num{font-family:'Space Grotesk',sans-serif; font-weight:700; font-size:20px; color:var(--diode); flex:0 0 auto; width:28px;}
 .plan-step h4{margin:0 0 4px; font-size:15px;}
 .plan-step p{margin:0; font-size:13px; color:var(--text-dim); line-height:1.5;}
+#planFasesWrap{display:flex; flex-direction:column; gap:12px; margin-bottom:6px;}
+.plan-fase{border:1px solid var(--line); background:var(--surface); border-radius:14px; padding:16px 18px;}
+.plan-fase .plazo{display:inline-block; font-family:'JetBrains Mono',monospace; font-size:11px; letter-spacing:.04em; text-transform:uppercase; color:var(--diode-glow); background:rgba(255,122,48,.1); border:1px solid rgba(255,122,48,.25); border-radius:20px; padding:3px 10px; margin-bottom:8px;}
+.plan-fase h4{margin:0 0 8px; font-size:15px;}
+.plan-fase ul{margin:0; padding-left:18px; display:flex; flex-direction:column; gap:6px;}
+.plan-fase li{font-size:13px; color:var(--text-dim); line-height:1.5;}
+.plan-error{border:1px solid rgba(255,92,92,.3); background:rgba(255,92,92,.06); color:var(--text-dim); border-radius:14px; padding:14px 16px; font-size:13px; display:flex; flex-direction:column; gap:10px;}
+.plan-chat{margin-top:26px; border-top:1px solid var(--line); padding-top:20px;}
+.plan-chat h3{font-family:'Space Grotesk',sans-serif; font-size:17px; margin:0 0 4px;}
+.chat-messages{display:flex; flex-direction:column; gap:10px; max-height:340px; overflow-y:auto; margin:14px 0; padding-right:2px;}
+.chat-bubble{max-width:85%; padding:10px 14px; border-radius:14px; font-size:13.5px; line-height:1.5;}
+.chat-bubble.user{align-self:flex-end; background:var(--diode); color:#1a1206; border-bottom-right-radius:4px;}
+.chat-bubble.model{align-self:flex-start; background:var(--surface-2); border:1px solid var(--line); color:var(--text); border-bottom-left-radius:4px;}
+.chat-bubble.loading{align-self:flex-start; color:var(--text-dim); font-style:italic;}
+.chat-input-row{display:flex; gap:8px;}
+.chat-input-row input{flex:1;}
+.chat-input-row .btn-primary{width:auto; padding:0 20px;}
 
 .toast{position:fixed; bottom:24px; left:50%; transform:translateX(-50%) translateY(20px); background:var(--surface-2); border:1px solid var(--line); padding:12px 20px; border-radius:12px; font-size:13px; opacity:0; transition:all .3s var(--ease); z-index:250; display:flex; align-items:center; gap:8px; max-width:90vw; text-align:left; box-shadow:0 10px 30px rgba(0,0,0,.4);}
 .toast.show{opacity:1; transform:translateX(-50%) translateY(0);}
@@ -537,11 +554,21 @@ select:disabled, input:disabled{opacity:.4; cursor:not-allowed;}
   <div class="screen" id="screen-8">
     <div class="eyebrow">Listo — Tu plan de vida</div>
     <h2 class="title" id="planTitulo">¡Felicidades! Aquí tienes tu hoja de ruta.</h2>
-    <div class="plan-step"><div class="num">01</div><div><h4>Preparación</h4><p id="paso1Txt"></p></div></div>
-    <div class="plan-step"><div class="num">02</div><div><h4>Transición</h4><p id="paso2Txt"></p></div></div>
-    <div class="plan-step"><div class="num">03</div><div><h4>Inserción laboral</h4><p id="paso3Txt"></p></div></div>
-    <button class="btn-primary" onclick="play('confirm'); descargarPlanPDF();">⬇ Descargar mi Plan en PDF</button>
+    <div id="planFasesWrap">
+      <div class="loading-row"><span class="spinner-mini"></span>Generando tu plan personalizado con IA…</div>
+    </div>
+    <button class="btn-primary" id="btnDescargarPlan" onclick="play('confirm'); descargarPlanPDF();">⬇ Descargar mi Plan en PDF</button>
     <button class="btn-ghost" onclick="play('back'); goTo(state.guest?6:7);">← Atrás para modificar</button>
+
+    <div class="plan-chat">
+      <h3>¿Tienes dudas sobre tu carrera o tu plan?</h3>
+      <p class="sub" style="margin-top:-4px;">Pregúntale lo que quieras a la IA de Diodo sobre tu carrera, tu institución o tu plan.</p>
+      <div class="chat-messages" id="chatMensajes"></div>
+      <div class="chat-input-row">
+        <input type="text" id="chatInput" placeholder="Ej: ¿Cuánto dura la carrera ahí?" onkeydown="if(event.key==='Enter'){ event.preventDefault(); enviarPreguntaChat(); }">
+        <button class="btn-primary" id="btnChatEnviar" onclick="enviarPreguntaChat();">Enviar</button>
+      </div>
+    </div>
   </div>
 
 </div>
@@ -558,6 +585,8 @@ const SUPABASE_URL = "https://fybsukirjnbmdjqogdue.supabase.co";
 const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZ5YnN1a2lyam5ibWRqcW9nZHVlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODIyNjMzMjIsImV4cCI6MjA5NzgzOTMyMn0.vUQhlPrlILiz5EcY7x5tF6x7olqe7Dao7CUDZ1T2S84";
 const EDGE_FN_BUSCAR_INSTITUCIONES = `${SUPABASE_URL}/functions/v1/gemini-buscar-instituciones`;
 const EDGE_FN_GENERAR_DETALLE = `${SUPABASE_URL}/functions/v1/gemini-realidad-carrera`;
+const EDGE_FN_PLAN_VIDA = `${SUPABASE_URL}/functions/v1/gemini-plan-vida`;
+const EDGE_FN_CHAT_PLAN = `${SUPABASE_URL}/functions/v1/gemini-chat-plan`;
 
 const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
@@ -598,7 +627,8 @@ const state = {
   presupuestoCat:'', presupuestoMonto:null,
   carreraDeseada:'', carreraDeseadaFamiliaId:null,
   carreraElegida:null, carreraElegidaFamiliaId:null, matchChosenId:null,
-  institucionElegida:null
+  institucionElegida:null,
+  planFases:null, chatHistorial:[]
 };
 // Cada visitante recibe un id de sesión propio para poder actualizar su
 // misma fila si retrocede y cambia algo, en vez de crear una fila duplicada.
@@ -1865,44 +1895,189 @@ async function renderInstituciones(){
 }
 
 /* ===================== PANTALLA 8: PLAN FINAL ===================== */
-function renderPlanFinal(){
+// Genera el plan de vida REAL con IA (Gemini, vía Edge Function), organizado
+// en fases por línea de tiempo. Si por algún motivo la IA falla, cae a un
+// plan mínimo de respaldo (no genérico-genérico, igual usa los datos del
+// usuario) para que la pantalla nunca quede vacía.
+async function renderPlanFinal(){
   document.getElementById('planTitulo').textContent =
     `¡Felicidades, ${state.nombre||'amig@'}! Aquí tienes tu hoja de ruta para estudiar ${state.carreraElegida} en ${state.institucionElegida}.`;
 
-  document.getElementById('paso1Txt').textContent =
-    state.situacion==='colegio'
-      ? `Repasa con prioridad razonamiento matemático y comprensión lectora — son la base del examen de admisión de ${state.institucionElegida}. Dedica 45 min diarios este mes.`
-      : `Revisa el temario de admisión de ${state.institucionElegida} y refuerza las áreas donde te sientas menos seguro antes de postular.`;
-
-  const seQueda = (state.destino===state.depto);
-  document.getElementById('paso2Txt').textContent = seQueda
-    ? `Como te quedarás en ${state.depto}, aprovecha tu red local: visita la institución, habla con estudiantes actuales y planifica tu horario de estudio en casa.`
-    : `Te mudarás a ${state.destino} para estudiar. A tu edad (${state.edad} años) es clave que organices alojamiento y presupuesto con tu familia con al menos 2 meses de anticipación.`;
+  const wrap = document.getElementById('planFasesWrap');
+  const btnDescargar = document.getElementById('btnDescargarPlan');
+  wrap.innerHTML = `<div class="loading-row"><span class="spinner-mini"></span>Generando tu plan personalizado con IA…</div>`;
+  btnDescargar.disabled = true;
 
   const detalle = state.carreraElegidaFamiliaId ? DB.detallePorFamilia[state.carreraElegidaFamiliaId] : null;
-  document.getElementById('paso3Txt').textContent = detalle && detalle.ambitos?.length
-    ? `Para ${state.carreraElegida}, las áreas con mayor crecimiento en el Perú actual son: ${detalle.ambitos[0].toLowerCase()} y proyectos vinculados a transformación digital y sostenibilidad.`
-    : `Investiga con la institución elegida las áreas de mayor demanda actual para ${state.carreraElegida} en el mercado peruano.`;
+
+  try{
+    const res = await fetch(EDGE_FN_PLAN_VIDA, {
+      method:'POST',
+      headers:{ 'Content-Type':'application/json', 'Authorization':`Bearer ${SUPABASE_ANON_KEY}` },
+      body: JSON.stringify({
+        nombre: state.nombre, edad: state.edad, sexo: state.sexo,
+        situacion: state.situacion, colegio: state.colegio,
+        depto_residencia: state.depto, prov_residencia: state.prov,
+        carrera_elegida: state.carreraElegida, institucion_elegida: state.institucionElegida,
+        destino_depto: state.destino, destino_prov: state.destinoProv,
+        presupuesto_cat: state.presupuestoCat, presupuesto_monto: state.presupuestoMonto,
+        detalle_carrera: detalle ? {
+          descripcion: detalle.descripcion, sueldo_junior: detalle.sueldo_junior,
+          sueldo_senior: detalle.sueldo_senior, demanda: detalle.demanda,
+          ambitos: detalle.ambitos, cursos: detalle.cursos
+        } : null
+      })
+    });
+    if(!res.ok) throw new Error('HTTP '+res.status);
+    const data = await res.json();
+    if(!data.fases?.length) throw new Error('Sin fases');
+    state.planFases = data.fases;
+    renderFasesPlan(state.planFases);
+    btnDescargar.disabled = false;
+  }catch(e){
+    console.error('No se pudo generar el plan con IA:', e);
+    // Respaldo mínimo si Gemini falla, sigue usando datos reales del usuario.
+    state.planFases = [
+      { plazo:'Próximos 30 días', titulo:'Prepárate para el examen', acciones:[
+        `Repasa el temario de admisión de ${state.institucionElegida}.`,
+        `Dedica al menos 45 minutos diarios este mes a razonamiento matemático y comprensión lectora.`
+      ]},
+      { plazo:'En 6 meses', titulo:'Transición', acciones:[
+        state.destino===state.depto
+          ? `Aprovecha tu red local en ${state.depto}: visita la institución y habla con estudiantes actuales.`
+          : `Organiza alojamiento y presupuesto en ${state.destino} con al menos 2 meses de anticipación.`
+      ]},
+    ];
+    renderFasesPlan(state.planFases, true);
+    btnDescargar.disabled = false;
+  }
+
+  // Reinicia el chat cada vez que se entra a esta pantalla con un plan nuevo.
+  state.chatHistorial = [];
+  document.getElementById('chatMensajes').innerHTML = '';
+}
+
+function renderFasesPlan(fases, esRespaldo){
+  const wrap = document.getElementById('planFasesWrap');
+  wrap.innerHTML = (esRespaldo ? `<div class="plan-error">No se pudo generar tu plan completo con IA en este momento — te dejamos una versión básica. Puedes usar el chat de abajo para completar los detalles.</div>` : '')
+    + fases.map(f => `
+      <div class="plan-fase">
+        <span class="plazo">${escapeHtml(f.plazo||'')}</span>
+        <h4>${escapeHtml(f.titulo||'')}</h4>
+        <ul>${(f.acciones||[]).map(a=>`<li>${escapeHtml(a)}</li>`).join('')}</ul>
+      </div>
+    `).join('');
+}
+
+/* ===================== CHAT DE DUDAS SOBRE CARRERA / PLAN ===================== */
+function agregarBurbujaChat(texto, rol){
+  const cont = document.getElementById('chatMensajes');
+  const div = document.createElement('div');
+  div.className = `chat-bubble ${rol}`;
+  div.textContent = texto;
+  cont.appendChild(div);
+  cont.scrollTop = cont.scrollHeight;
+  return div;
+}
+
+async function enviarPreguntaChat(){
+  const input = document.getElementById('chatInput');
+  const pregunta = input.value.trim();
+  if(!pregunta) return;
+  const btn = document.getElementById('btnChatEnviar');
+
+  agregarBurbujaChat(pregunta, 'user');
+  state.chatHistorial.push({ rol:'user', texto:pregunta });
+  input.value = '';
+  input.disabled = true;
+  btn.disabled = true;
+  const burbujaCargando = agregarBurbujaChat('Escribiendo…', 'loading');
+
+  try{
+    const res = await fetch(EDGE_FN_CHAT_PLAN, {
+      method:'POST',
+      headers:{ 'Content-Type':'application/json', 'Authorization':`Bearer ${SUPABASE_ANON_KEY}` },
+      body: JSON.stringify({
+        contexto: {
+          nombre: state.nombre,
+          carrera_elegida: state.carreraElegida,
+          institucion_elegida: state.institucionElegida,
+          destino_depto: state.destino,
+          plan_fases: state.planFases
+        },
+        historial: state.chatHistorial.slice(0, -1),
+        pregunta
+      })
+    });
+    if(!res.ok) throw new Error('HTTP '+res.status);
+    const data = await res.json();
+    burbujaCargando.remove();
+    if(!data.respuesta) throw new Error('Sin respuesta');
+    agregarBurbujaChat(data.respuesta, 'model');
+    state.chatHistorial.push({ rol:'model', texto:data.respuesta });
+  }catch(e){
+    console.error('Error en el chat:', e);
+    burbujaCargando.remove();
+    agregarBurbujaChat('No pude responder en este momento, intenta de nuevo en unos segundos.', 'model');
+  }finally{
+    input.disabled = false;
+    btn.disabled = false;
+    input.focus();
+  }
+}
+
+// Carga logo.png como data URL una sola vez (se reutiliza en cada página del PDF).
+async function obtenerLogoDataURL(){
+  if(window._logoDataUrl) return window._logoDataUrl;
+  const res = await fetch('logo.png');
+  const blob = await res.blob();
+  window._logoDataUrl = await new Promise((resolve, reject)=>{
+    const reader = new FileReader();
+    reader.onload = ()=>resolve(reader.result);
+    reader.onerror = reject;
+    reader.readAsDataURL(blob);
+  });
+  return window._logoDataUrl;
 }
 
 // Genera y descarga un PDF real del Plan de Vida usando jsPDF (cargado
 // desde CDN en el <head>). Si la librería no llegó a cargar (por ejemplo,
 // por falta de conexión o un bloqueador), avisa al usuario en vez de
-// fallar en silencio.
-function descargarPlanPDF(){
+// fallar en silencio. Usa las fases generadas por IA (state.planFases) en
+// vez de texto fijo, y estampa el logo de Diodo en la esquina de cada hoja.
+async function descargarPlanPDF(){
   if(!window.jspdf || !window.jspdf.jsPDF){
     toast('No se pudo cargar el generador de PDF. Revisa tu conexión e intenta de nuevo.', true);
     return;
   }
+  if(!state.planFases?.length){
+    toast('Tu plan todavía se está generando, espera un momento.', true);
+    return;
+  }
   try{
+    const logoUrl = await obtenerLogoDataURL().catch(()=>null);
     const { jsPDF } = window.jspdf;
     const doc = new jsPDF({ unit:'mm', format:'a4' });
     const marginX = 20;
     let y = 22;
 
+    // Dibuja la franja naranja + el logo en la esquina de la página actual.
+    const dibujarEncabezadoPagina = ()=>{
+      doc.setFillColor(255,122,48); // --diode
+      doc.rect(0, 0, 210, 12, 'F');
+      if(logoUrl){
+        try{ doc.addImage(logoUrl, 'PNG', 178, 18, 14, 14); }catch(e){ console.error('No se pudo insertar el logo en el PDF:', e); }
+      }
+    };
+    const nuevaPagina = ()=>{
+      doc.addPage();
+      dibujarEncabezadoPagina();
+      y = 22;
+    };
+
+    dibujarEncabezadoPagina();
+
     // ---- Encabezado ----
-    doc.setFillColor(255,122,48); // --diode
-    doc.rect(0, 0, 210, 12, 'F');
     doc.setFontSize(20);
     doc.setTextColor(20,20,20);
     doc.text('Diodo — Tu Plan de Vida', marginX, y);
@@ -1929,24 +2104,28 @@ function descargarPlanPDF(){
     doc.line(marginX, y, 190, y);
     y += 10;
 
-    // ---- Pasos del plan ----
-    const pasos = [
-      { titulo:'01. Preparación', texto: document.getElementById('paso1Txt')?.textContent || '' },
-      { titulo:'02. Transición', texto: document.getElementById('paso2Txt')?.textContent || '' },
-      { titulo:'03. Inserción laboral', texto: document.getElementById('paso3Txt')?.textContent || '' },
-    ];
-
-    pasos.forEach(p=>{
-      if(y > 260){ doc.addPage(); y = 22; }
-      doc.setFontSize(13);
+    // ---- Fases del plan (generadas por IA, con línea de tiempo real) ----
+    state.planFases.forEach(fase=>{
+      if(y > 250){ nuevaPagina(); }
+      doc.setFontSize(10);
       doc.setTextColor(255,122,48);
-      doc.text(p.titulo, marginX, y);
-      y += 7;
-      doc.setFontSize(11);
-      doc.setTextColor(50,50,50);
-      const lineas = doc.splitTextToSize(p.texto, 170);
-      doc.text(lineas, marginX, y);
-      y += lineas.length * 5.5 + 8;
+      doc.text((fase.plazo||'').toUpperCase(), marginX, y);
+      y += 6;
+      doc.setFontSize(13);
+      doc.setTextColor(20,20,20);
+      const tituloLineas = doc.splitTextToSize(fase.titulo||'', 170);
+      doc.text(tituloLineas, marginX, y);
+      y += tituloLineas.length * 6 + 3;
+
+      (fase.acciones||[]).forEach(accion=>{
+        if(y > 265){ nuevaPagina(); }
+        doc.setFontSize(11);
+        doc.setTextColor(50,50,50);
+        const lineas = doc.splitTextToSize(`•  ${accion}`, 168);
+        doc.text(lineas, marginX+2, y);
+        y += lineas.length * 5.5 + 3;
+      });
+      y += 8;
     });
 
     // ---- Pie de página ----
