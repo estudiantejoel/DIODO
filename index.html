@@ -115,6 +115,18 @@ select:disabled, input:disabled{opacity:.4; cursor:not-allowed;}
 .q-slide-out-right{opacity:0; transform:translateX(24px);}
 .q-slide-in{opacity:0; transform:translateX(24px);}
 
+/* ===== Preplan (Paso 8a — 4 preguntas rápidas antes del plan) =====
+   Estas reglas faltaban en el original: los wrappers #preplanProgress y
+   #preplanOpciones no tenían ningún estilo propio, así que los puntitos de
+   progreso quedaban invisibles (spans sin ancho/alto) y las opciones/skip
+   se veían apretadas sin espaciado. Se replican los mismos patrones ya
+   usados en .q-progress-mini y .q-options para mantener consistencia visual. */
+.preplan-progress{display:flex; gap:5px; flex-wrap:wrap;}
+.preplan-progress span{width:14px; height:4px; border-radius:3px; background:var(--line); transition:background .3s var(--ease);}
+.preplan-progress span.done{background:var(--diode);}
+.preplan-quick{display:flex; flex-direction:column; gap:10px;}
+.preplan-skip{margin-top:2px;}
+
 .stat-grid{display:grid; grid-template-columns:1fr 1fr; gap:12px;}
 .stat-box{background:var(--surface); border:1px solid var(--line); border-radius:14px; padding:16px; transition:border-color .2s var(--ease);}
 .stat-box:hover{border-color:var(--line);}
@@ -552,21 +564,39 @@ select:disabled, input:disabled{opacity:.4; cursor:not-allowed;}
 
   <!-- PANTALLA 8: PLAN FINAL -->
   <div class="screen" id="screen-8">
-    <div class="eyebrow">Listo — Tu plan de vida</div>
-    <h2 class="title" id="planTitulo">¡Felicidades! Aquí tienes tu hoja de ruta.</h2>
-    <div id="planFasesWrap">
-      <div class="loading-row"><span class="spinner-mini"></span>Generando tu plan personalizado con IA…</div>
-    </div>
-    <button class="btn-primary" id="btnDescargarPlan" onclick="play('confirm'); descargarPlanPDF();">⬇ Descargar mi Plan en PDF</button>
-    <button class="btn-ghost" onclick="play('back'); goTo(state.guest?6:7);">← Atrás para modificar</button>
 
-    <div class="plan-chat">
-      <h3>¿Tienes dudas sobre tu carrera o tu plan?</h3>
-      <p class="sub" style="margin-top:-4px;">Pregúntale lo que quieras a la IA de Diodo sobre tu carrera, tu institución o tu plan.</p>
-      <div class="chat-messages" id="chatMensajes"></div>
-      <div class="chat-input-row">
-        <input type="text" id="chatInput" placeholder="Ej: ¿Cuánto dura la carrera ahí?" onkeydown="if(event.key==='Enter'){ event.preventDefault(); enviarPreguntaChat(); }">
-        <button class="btn-primary" id="btnChatEnviar" onclick="enviarPreguntaChat();">Enviar</button>
+    <!-- SUB-PASO 8a: 4 preguntas rápidas antes de generar el plan -->
+    <div id="preplanWrap">
+      <div class="eyebrow">Antes de tu plan — 4 preguntas rápidas</div>
+      <h2 class="title">Para que tu plan sea realmente tuyo…</h2>
+      <p class="sub">Estas respuestas no cambian tu carrera ni tu institución — solo ayudan a la IA a darte consejos específicos para TU situación, no genéricos.</p>
+      <div class="preplan-progress" id="preplanProgress"></div>
+      <div class="chat-messages" id="preplanMensajes"></div>
+      <div class="preplan-quick" id="preplanOpciones"></div>
+      <button class="btn-link preplan-skip" onclick="saltarPreplan();">Prefiero saltar esto y ver mi plan directo</button>
+      <div class="nav-row" style="margin-top:4px;">
+        <button class="btn-ghost" onclick="play('back'); goTo(state.guest?6:7);">← Atrás</button>
+      </div>
+    </div>
+
+    <!-- SUB-PASO 8b: el plan ya generado (oculto hasta terminar el preplan) -->
+    <div id="planContentWrap" style="display:none;">
+      <div class="eyebrow">Listo — Tu plan de vida</div>
+      <h2 class="title" id="planTitulo">¡Felicidades! Aquí tienes tu hoja de ruta.</h2>
+      <div id="planFasesWrap">
+        <div class="loading-row"><span class="spinner-mini"></span>Generando tu plan personalizado con IA…</div>
+      </div>
+      <button class="btn-primary" id="btnDescargarPlan" onclick="play('confirm'); descargarPlanPDF();">⬇ Descargar mi Plan en PDF</button>
+      <button class="btn-ghost" onclick="play('back'); goTo(state.guest?6:7);">← Atrás para modificar</button>
+
+      <div class="plan-chat">
+        <h3>¿Tienes dudas sobre tu carrera o tu plan?</h3>
+        <p class="sub" style="margin-top:-4px;">Pregúntale lo que quieras a la IA de Diodo sobre tu carrera, tu institución o tu plan.</p>
+        <div class="chat-messages" id="chatMensajes"></div>
+        <div class="chat-input-row">
+          <input type="text" id="chatInput" placeholder="Ej: ¿Cuánto dura la carrera ahí?" onkeydown="if(event.key==='Enter'){ event.preventDefault(); enviarPreguntaChat(); }">
+          <button class="btn-primary" id="btnChatEnviar" onclick="enviarPreguntaChat();">Enviar</button>
+        </div>
       </div>
     </div>
   </div>
@@ -628,7 +658,9 @@ const state = {
   carreraDeseada:'', carreraDeseadaFamiliaId:null,
   carreraElegida:null, carreraElegidaFamiliaId:null, matchChosenId:null,
   institucionElegida:null,
-  planFases:null, chatHistorial:[]
+  planFases:null, chatHistorial:[],
+  contextoAdicional:{ familia:null, dondeTrabajar:null, necesitaTrabajar:null, notas:'' },
+  preplanIndex:0
 };
 // Cada visitante recibe un id de sesión propio para poder actualizar su
 // misma fila si retrocede y cambia algo, en vez de crear una fila duplicada.
@@ -804,21 +836,7 @@ async function cargarDistritos(provId){
 
 /* =====================================================================
    PREGUNTAS — modelo RIASEC puro (6 dimensiones)
-   =====================================================================
-   Antes había 18 preguntas RIASEC + 4 preguntas "extra" (estilo_equipo,
-   comodidad_numeros, autonomia, variedad_rutina) que NO pertenecían a
-   ninguna de las 6 dimensiones y contaminaban el vector.
-
-   Ahora se conserva la MISMA CANTIDAD TOTAL de preguntas (22), pero las
-   22 se agrupan exclusivamente en los 6 temas RIASEC: Realista,
-   Investigador, Artístico, Social, Emprendedor, Convencional. Las 4
-   preguntas que sobraban se reescribieron como preguntas RIASEC nuevas
-   (situaciones concretas, no rasgos genéricos de "estilo de trabajo"),
-   así el vector del alumno queda siempre V_e = [R, I, A, S, E, C].
-
-   Convención de claves: mismo prefijo + sufijo _1, _2, _3... Al calcular
-   el match, todas las respuestas de un mismo prefijo se combinan en un
-   solo componente del vector (ver construirVectorRIASEC). */
+   ===================================================================== */
 const PREGUNTAS_EXTRA = [
   // R — Realista (4 preguntas): manos a la obra, técnico, físico
   { clave:'riasec_realista_1', titulo:'Manos a la obra', subtitulo:'Prefiero arreglar algo con mis manos antes que solo leer cómo se hace.' },
@@ -868,9 +886,6 @@ async function cargarFamiliasYDetalle(){
   DB.familias = data;
   const { data: detalles } = await sb.from('carrera_detalle').select('*');
   (detalles||[]).forEach(d=>{ DB.detallePorFamilia[d.carrera_familia_id] = d; });
-  // DIAGNÓSTICO: lista en consola (F12) qué familias todavía no tienen fila
-  // en carrera_detalle, para saber de un vistazo cuáles priorizar en Supabase
-  // en vez de descubrirlo una por una probando el test.
   const sinDetalle = DB.familias.filter(f => !DB.detallePorFamilia[f.id]);
   if(sinDetalle.length){
     console.warn(`⚠️ ${sinDetalle.length} de ${DB.familias.length} carreras NO tienen datos en carrera_detalle (saldrán como "sin datos" en el Paso 5):`);
@@ -919,7 +934,7 @@ function goTo(step){
   if(step===5) renderRealidad();
   if(step===6) renderInstituciones();
   if(step===7) document.getElementById('gateNombre').textContent = `¡Excelente elección, ${state.nombre||'amig@'}!`;
-  if(step===8){ renderPlanFinal(); guardarRespuestaEnBD(); }
+  if(step===8){ iniciarPreplanChat(); guardarRespuestaEnBD(); }
 }
 function renderRail(){
   const rail = document.getElementById('rail');
@@ -1054,10 +1069,6 @@ function validateAndGo(next){
     if(state.presupuestoCat==='otro' && (!state.presupuestoMonto || state.presupuestoMonto<=0)){
       play('error'); toast('Escribe un monto válido para tu presupuesto.', true); return;
     }
-    // Si el usuario escribió una carrera a mano y todavía no se resolvió
-    // contra el catálogo (autocompletado async o sin seleccionar sugerencia),
-    // lo intentamos resolver aquí mismo antes de avanzar, para no perder
-    // ese dato en el paso de match (ver intentarResolverCarreraEscrita).
     intentarResolverCarreraEscrita();
   }
   if(state.step===6){
@@ -1066,16 +1077,7 @@ function validateAndGo(next){
   goTo(next);
 }
 
-/* ===================== PANTALLA 2: PREGUNTAS CON TRANSICIÓN =====================
-   Antes cada opción guardaba directamente un "porcentaje" (0/25/50/75/100)
-   y el match promediaba esos porcentajes tal cual — eso no es un vector,
-   es solo un promedio de opciones elegidas.
-
-   Ahora cada opción guarda una puntuación Likert de 1 a 5 (muy en
-   desacuerdo → muy de acuerdo). Esa puntuación se usa directamente (sin
-   centrar) para construir el componente real del vector V_e = [R,I,A,S,E,C]
-   que se usa en el coseno de similitud (ver construirVectorRIASEC). El
-   label que ve el usuario no cambia, solo cómo se almacena y se calcula. */
+/* ===================== PANTALLA 2: PREGUNTAS CON TRANSICIÓN ===================== */
 const OPCIONES_5 = [
   {label:"Nada, no me identifica", val:1},
   {label:"Poco", val:2},
@@ -1194,10 +1196,6 @@ async function fillProvDestino(){
   }
 }
 
-// ---- Autocompletado real contra el catálogo mientras el usuario escribe.
-// Ya NO se muestran sugerencias automáticas basadas en el test cuando el
-// campo está vacío o recibe foco: el campo de "carrera en mente" del Paso 3
-// solo debe reaccionar a lo que el usuario escribe. ----
 const inCarrera = document.getElementById('inCarreraDeseada');
 const acBox = document.getElementById('acCarreras');
 let acTimer=null, acIndex=-1, acItemsCache=[], acRequestId=0;
@@ -1219,9 +1217,7 @@ function bindAcItems(items, esSugerencia){
     });
   });
 }
-inCarrera.addEventListener('focus', ()=>{
-  // Ya no mostramos sugerencias automáticas del test al enfocar el campo vacío.
-});
+inCarrera.addEventListener('focus', ()=>{});
 inCarrera.addEventListener('input', ()=>{
   play('type');
   state.carreraDeseada = inCarrera.value.trim();
@@ -1239,12 +1235,6 @@ inCarrera.addEventListener('input', ()=>{
     const results = await buscarCarrerasAutocomplete(term);
     if(myRequestId !== acRequestId) return;
     acItemsCache = results; acIndex=-1;
-    // FIX: si lo que escribió coincide EXACTO (ignorando tildes/mayúsculas)
-    // con una carrera real del catálogo, la damos por resuelta de una vez,
-    // aunque el usuario no llegue a hacer clic en la sugerencia. Antes esto
-    // solo pasaba al elegir del dropdown, y si el usuario tipeaba el nombre
-    // correcto y avanzaba sin clickear, se perdía el familia_id y el match
-    // terminaba mostrándose siempre como "personalizado" sin datos reales.
     const exacta = results.find(r => normalizarNombre(r.nombre) === normalizarNombre(term));
     if(exacta){ state.carreraDeseadaFamiliaId = exacta.familia_id; }
     if(!results.length){ acBox.innerHTML = `<div class="ac-empty">Sin coincidencias — puedes escribir el nombre igual, lo tomamos en cuenta.</div>`; return; }
@@ -1262,75 +1252,26 @@ inCarrera.addEventListener('keydown', (e)=>{
 });
 function updateAcHover(items){ items.forEach((it,i)=>it.classList.toggle('hover', i===acIndex)); items[acIndex]?.scrollIntoView({block:'nearest'}); }
 document.addEventListener('click', (e)=>{ if(!acBox.contains(e.target) && e.target!==inCarrera){ acBox.classList.remove('show'); } });
-// Si el usuario escribe y se va del campo sin elegir ninguna sugerencia del
-// autocompletado real, igual intentamos resolver el texto contra el catálogo
-// para no perder el dato al pasar al siguiente paso.
 inCarrera.addEventListener('blur', ()=>{ setTimeout(resolverCarreraEscritaAlSalir, 150); });
 
-// FIX: al salir del campo, antes de recurrir al fallback por similitud de
-// nombre contra las ~30 familias amplias (que casi nunca coincidía con lo
-// tipeado), probamos primero contra el catálogo real de carreras
-// (carrera_nombres) — la misma fuente que usa el autocompletado, y que sí
-// trae el familia_id correcto para nombres específicos como "Ingeniería
-// Económica". Esto evita que el match termine mostrándose como
-// "personalizado" para carreras que en realidad SÍ están en la base.
 async function resolverCarreraEscritaAlSalir(){
-  if(!state.carreraDeseada || state.carreraDeseadaFamiliaId) return; // vacío, o ya resuelto
+  if(!state.carreraDeseada || state.carreraDeseadaFamiliaId) return;
   try{
+    const safeTerm = escapeIlike(state.carreraDeseada);
     const { data, error } = await sb
       .from('carrera_nombres')
       .select('id, nombre, familia_id')
-      .ilike('nombre', `%${state.carreraDeseada}%`)
+      .ilike('nombre', `%${safeTerm}%`)
       .limit(1);
     if(!error && data && data.length && data[0].familia_id){
       state.carreraDeseadaFamiliaId = data[0].familia_id;
       return;
     }
   }catch(e){ console.error('No se pudo resolver la carrera contra el catálogo:', e); }
-  // Último recurso: comparación local contra las familias amplias.
   intentarResolverCarreraEscrita();
 }
 
-/* ===================== LÓGICA DE MATCH — Coseno de similitud sobre el vector RIASEC =====================
-   V_e = [R, I, A, S, E, C]
-
-   1) VECTOR DEL ALUMNO: las respuestas Likert (1-5) de cada pregunta se
-      agrupan por su rasgo (prefijo de la clave, ej. "riasec_realista") y se
-      promedian entre sí (construirVectorRIASEC). El promedio se reescala
-      linealmente de 1..5 a 0..1 (SIN centrar en 0): U_i = (promedio-1)/4.
-      Así el vector del alumno usa exactamente la misma escala 0..1 que el
-      vector de pesos de cada carrera, tal como exige la fórmula de coseno.
-
-   2) VECTOR DE CADA CARRERA: cada familia de carrera tiene un perfil de
-      pesos por dimensión RIASEC (0..1), ya sea configurado en Supabase
-      (columna `pesos`) o, si no existe, tomado de PESOS_RESPALDO — una
-      tabla explícita y editable, específica por carrera (no una regex
-      genérica sobre el nombre).
-
-   3) EL MATCH: se calcula la similitud de coseno pura entre ambos vectores
-      de 6 componentes, exactamente como:
-
-          Afinidad = (Σ Ui·Ci) / (√(Σ Ui²) · √(Σ Ci²))
-
-      El resultado (0..1) se reescala a 0-100% solo para mostrarlo en la
-      interfaz (ya no se hace ningún ajuste de rango adicional).
-
-   4) FILTRO DE VETO ("guillotina"): si una carrera tiene una dimensión
-      clave con peso > 0.8 en su vector ideal (ej. Investigador para
-      Ingeniería) y el alumno respondió con un valor menor a 0.3 en esa
-      misma dimensión, se penaliza restándole 40 puntos porcentuales de
-      golpe al resultado final (ver aplicarFiltroDeVeto). Esto evita que un
-      alumno "parejo" (que marca todo alto o todo bajo, sin definir un
-      perfil) obtenga afinidades altas en carreras que exigen un rasgo muy
-      específico que él no tiene.
-
-   5) CONFIANZA: además del coseno, se calcula qué tan lejos de "neutro"
-      (0.5) estuvieron en promedio las respuestas relevantes para esa
-      carrera. Respuestas todas en "Algo, depende" (3/5 → 0.5) dan una
-      confianza baja aunque el coseno salga alto, y se lo mostramos al
-      usuario. */
-
-// Nombres legibles de las 6 dimensiones, para mostrarlas en la UI.
+/* ===================== LÓGICA DE MATCH — Coseno de similitud sobre el vector RIASEC ===================== */
 const NOMBRES_RASGOS = {
   riasec_realista:'Realista (manos a la obra)',
   riasec_investigador:'Investigador (análisis)',
@@ -1342,46 +1283,34 @@ const NOMBRES_RASGOS = {
 const ORDEN_RASGOS = ['riasec_realista','riasec_investigador','riasec_artistico','riasec_social','riasec_emprendedor','riasec_convencional'];
 const LETRA_RASGO = { riasec_realista:'R', riasec_investigador:'I', riasec_artistico:'A', riasec_social:'S', riasec_emprendedor:'E', riasec_convencional:'C' };
 
-// Umbrales del filtro de veto ("guillotina"): dimensión clave para la carrera
-// (peso ideal > PESO_MIN_VETO) donde el alumno respondió muy bajo
-// (componente < RESPUESTA_MAX_VETO). Ambos en escala 0..1.
 const PESO_MIN_VETO = 0.8;
 const RESPUESTA_MAX_VETO = 0.3;
-const PENALIZACION_VETO = 40; // puntos porcentuales que se restan de golpe
+const PENALIZACION_VETO = 40;
 
-// Agrupa las respuestas Likert (1-5) por rasgo (quitando el sufijo _1, _2,
-// _3...) y promedia cada grupo, reescalando linealmente de 1..5 a 0..1
-// (SIN centrar en 0). Ese es el componente real del vector
-// V_e = [R,I,A,S,E,C] — listo para usarse tal cual en la fórmula de coseno.
 function construirVectorRIASEC(hobbies){
   const grupos = {};
   Object.entries(hobbies).forEach(([clave, valorLikert])=>{
     const rasgo = clave.replace(/_\d+$/, '');
-    if(!ORDEN_RASGOS.includes(rasgo)) return; // ignora cualquier clave que no sea RIASEC
+    if(!ORDEN_RASGOS.includes(rasgo)) return;
     if(!grupos[rasgo]) grupos[rasgo] = [];
     grupos[rasgo].push(valorLikert);
   });
   const vector = {};
   ORDEN_RASGOS.forEach(rasgo=>{
     const valores = grupos[rasgo];
-    if(!valores || !valores.length){ vector[rasgo] = null; return; } // sin respuestas todavía
-    const promedio = valores.reduce((a,b)=>a+b,0) / valores.length; // 1..5
-    vector[rasgo] = (promedio - 1) / 4; // reescalado lineal a 0..1, sin centrar
+    if(!valores || !valores.length){ vector[rasgo] = null; return; }
+    const promedio = valores.reduce((a,b)=>a+b,0) / valores.length;
+    vector[rasgo] = (promedio - 1) / 4;
   });
   return vector;
 }
 
-// Quita tildes y normaliza mayúsculas/espacios para comparar nombres de
-// familias de carrera de forma más flexible ("Ingeniería" == "ingenieria").
 function normalizarNombre(str){
   return (str||'')
     .normalize('NFD').replace(/[\u0300-\u036f]/g,'')
     .toLowerCase().trim();
 }
 
-// Pesos de respaldo por carrera, restringidos a las 6 dimensiones RIASEC
-// (0..1 = qué tanto pesa esa dimensión en el perfil de la carrera). Se usan
-// SOLO si la familia no trae sus propios pesos desde Supabase.
 const PESOS_RESPALDO = {
   'ingenieria de sistemas': { riasec_investigador:0.9, riasec_realista:0.4, riasec_convencional:0.6 },
   'ingenieria informatica': { riasec_investigador:0.9, riasec_realista:0.4, riasec_convencional:0.6 },
@@ -1431,32 +1360,22 @@ const PESOS_RESPALDO = {
 function buscarPesosRespaldo(nombreFamilia){
   const norm = normalizarNombre(nombreFamilia);
   if(PESOS_RESPALDO[norm]) return PESOS_RESPALDO[norm];
-  // Coincidencia parcial por si el nombre en Supabase trae variantes
-  // ("Ing. de Sistemas", "Administración de Empresas y Negocios", etc.)
   const claveParecida = Object.keys(PESOS_RESPALDO).find(k => norm.includes(k) || k.includes(norm));
   return claveParecida ? PESOS_RESPALDO[claveParecida] : null;
 }
 
-// Filtra del vector de pesos de una familia solo las claves RIASEC válidas
-// (por si Supabase trae claves antiguas como comodidad_numeros, etc.), para
-// que el vector de la carrera también sea puramente [R,I,A,S,E,C].
 function filtrarPesosRIASEC(pesos){
   const limpio = {};
   ORDEN_RASGOS.forEach(r=>{ if(pesos && pesos[r]!==undefined) limpio[r] = pesos[r]; });
   return limpio;
 }
 
-// Similitud de coseno PURA entre dos vectores de igual dimensión, sin
-// ningún centrado ni reescalado adicional — exactamente:
-//   cos(θ) = (Σ Ui·Ci) / (√(Σ Ui²) · √(Σ Ci²))
-// más una confianza (0-100) según qué tan lejos de neutro (0.5) estuvieron
-// en promedio las respuestas usadas.
 function cosineScoreConConfianza(vectorAlumno, pesosCarrera){
   const keys = Object.keys(pesosCarrera||{});
   if(!keys.length) return null;
   let dot=0, magAlumno=0, magCarrera=0, sumDistancia=0, nConRespuesta=0;
   keys.forEach(key=>{
-    const componente = vectorAlumno[key]; // 0..1, o null si no respondió aún
+    const componente = vectorAlumno[key];
     const valor = componente===null || componente===undefined ? 0 : componente;
     const peso = pesosCarrera[key];
     dot += valor*peso;
@@ -1470,11 +1389,6 @@ function cosineScoreConConfianza(vectorAlumno, pesosCarrera){
   return { pct: Math.round(cos*100), confianza };
 }
 
-// FILTRO DE VETO ("guillotina"): recorre las dimensiones clave de la
-// carrera (peso ideal > PESO_MIN_VETO); si el alumno respondió por debajo
-// de RESPUESTA_MAX_VETO en alguna de ellas, penaliza el resultado final
-// restándole PENALIZACION_VETO puntos porcentuales de golpe. Devuelve el
-// puntaje ya penalizado (clampado a 0) y si se aplicó algún veto.
 function aplicarFiltroDeVeto(pctBase, vectorAlumno, pesosCarrera){
   let pct = pctBase;
   let vetoAplicado = false;
@@ -1507,11 +1421,6 @@ function computeMatches(){
   }).sort((a,b)=>b.pct-a.pct);
 }
 
-// Busca, por similitud de nombre, la familia de carrera del catálogo más
-// parecida a un texto libre (lo que escribió el usuario, o el nombre
-// elegido como carrera final). Se usa tanto para no perder el match cuando
-// el usuario escribe una carrera sin seleccionar sugerencia, como en el
-// paso 5 para mostrar sueldos/demanda aproximados.
 function buscarFamiliaAproximada(nombreCarrera){
   if(!nombreCarrera) return null;
   const norm = normalizarNombre(nombreCarrera);
@@ -1527,26 +1436,14 @@ function buscarFamiliaAproximada(nombreCarrera){
   return mejor;
 }
 
-// FIX: antes, si el usuario escribía una carrera a mano en el paso 3 y no
-// alcanzaba a elegir ninguna sugerencia del autocompletado real antes de
-// avanzar de pantalla, ese texto quedaba como "personalizado" sin ningún
-// match calculado — se perdía el valor del coseno de similitud para el
-// siguiente paso. Esta función corre al salir del campo (blur) y al validar
-// el paso 3, e intenta resolver el texto escrito contra el catálogo real de
-// familias por similitud de nombre, para que el match SIEMPRE se calcule
-// cuando sea posible.
 function intentarResolverCarreraEscrita(){
-  if(!state.carreraDeseada || state.carreraDeseadaFamiliaId) return; // vacío, o ya resuelto
+  if(!state.carreraDeseada || state.carreraDeseadaFamiliaId) return;
   const fam = buscarFamiliaAproximada(state.carreraDeseada);
   if(fam){ state.carreraDeseadaFamiliaId = fam.id; }
 }
 
-// Calcula cuál debería ser la carrera "principal" por defecto (antes de que
-// el usuario elija explícitamente una alternativa).
 function computeDefaultPrincipal(ranked){
   if(state.carreraDeseada && !state.carreraDeseadaFamiliaId){
-    // Último intento de resolver el texto libre contra el catálogo antes
-    // de resignarnos a mostrarlo sin porcentaje de afinidad.
     intentarResolverCarreraEscrita();
   }
   if(state.carreraDeseada && state.carreraDeseadaFamiliaId){
@@ -1558,8 +1455,6 @@ function computeDefaultPrincipal(ranked){
   }
   return {nombre:'Explora tus opciones', pct:null, id:null, rasgos:[], confianza:null};
 }
-// Texto de confianza en palabras simples, para no mostrarle al usuario un
-// número técnico sin contexto.
 function textoConfianza(confianza){
   if(confianza===null || confianza===undefined) return '';
   if(confianza>=60) return 'Confianza alta — tus respuestas fueron bastante definidas.';
@@ -1577,13 +1472,11 @@ function pintarRasgosYConfianza(item){
   const notaVeto = item.vetoAplicado ? ' Penalizado: te falta el rasgo clave que exige esta carrera.' : '';
   wrapConfianza.textContent = textoConfianza(item.confianza) + notaVeto;
 }
-// Dibuja el vector V_e = [R,I,A,S,E,C] del alumno como 6 barras, para que
-// se vea el álgebra lineal detrás del match y no solo un porcentaje final.
 function pintarVectorRIASEC(){
   const vector = construirVectorRIASEC(state.hobbies);
   const wrap = document.getElementById('matchVector');
   wrap.innerHTML = ORDEN_RASGOS.map(r=>{
-    const comp = vector[r]; // 0..1 o null
+    const comp = vector[r];
     const pct = comp===null ? 0 : Math.round(comp*100);
     return `<div class="rv-row" title="${escapeHtml(NOMBRES_RASGOS[r])}">
       <span class="rv-key">${LETRA_RASGO[r]}</span>
@@ -1596,9 +1489,6 @@ function renderMatch(){
   const ranked = computeMatches();
   pintarVectorRIASEC();
 
-  // Si el usuario ya había elegido explícitamente una opción (por ejemplo
-  // una alternativa) y luego vuelve a esta pantalla, respetamos su elección
-  // en vez de recalcular desde cero.
   let principal;
   if(state.matchChosenId===null || state.matchChosenId===undefined){
     principal = computeDefaultPrincipal(ranked);
@@ -1667,12 +1557,6 @@ async function renderRealidad(){
     if(aprox && DB.detallePorFamilia[aprox.id]){ detalle = DB.detallePorFamilia[aprox.id]; esAproximado = true; }
   }
 
-  // FIX: si de plano no hay NADA (ni exacto ni aproximado) y sí sabemos a
-  // qué familia pertenece la carrera elegida, generamos la ficha en el
-  // momento con la IA (Gemini) en vez de mostrar el mensaje de "aún no
-  // tenemos el detalle". El resultado se guarda en Supabase (carrera_detalle)
-  // para que la próxima persona que consulte esa misma carrera ya la
-  // encuentre lista, sin tener que volver a generarla.
   if(!detalle && state.carreraElegidaFamiliaId){
     pintarRealidadCargando();
     detalle = await generarDetalleCarreraConIA(state.carreraElegidaFamiliaId, state.carreraElegida);
@@ -1680,12 +1564,17 @@ async function renderRealidad(){
   }
 
   if(!detalle){
-    document.getElementById('carreraDesc5').textContent = "Aún no tenemos el detalle actualizado de esta carrera en la base de datos — nuestro sistema con IA lo generará pronto. Mientras tanto, revisa las instituciones disponibles en el siguiente paso.";
+    const tieneFamilia = !!state.carreraElegidaFamiliaId;
+    document.getElementById('carreraDesc5').textContent = tieneFamilia
+      ? "No pudimos generar el detalle de esta carrera con IA en este momento (puede ser un problema temporal). Puedes intentarlo de nuevo, o seguir al siguiente paso."
+      : "Aún no tenemos el detalle actualizado de esta carrera en la base de datos. Mientras tanto, revisa las instituciones disponibles en el siguiente paso.";
     document.getElementById('sueldoJunior').textContent = 'S/. —';
     document.getElementById('sueldoSenior').textContent = 'S/. —';
     document.getElementById('demandaBar').style.width='50%';
     document.getElementById('demandaTxt').textContent = 'Nivel: No disponible';
-    document.getElementById('ambitos').innerHTML = '<li>Te recomendamos investigar mallas curriculares específicas en las instituciones del siguiente paso.</li>';
+    document.getElementById('ambitos').innerHTML = tieneFamilia
+      ? `<li><button class="btn-ghost" style="width:auto; padding:8px 14px;" onclick="reintentarRealidad();">🔄 Reintentar generar esta ficha</button></li>`
+      : '<li>Te recomendamos investigar mallas curriculares específicas en las instituciones del siguiente paso.</li>';
     document.getElementById('cursosClave').innerHTML='';
     document.getElementById('modalidadTags').innerHTML='';
     document.getElementById('fuenteDatos5').textContent='';
@@ -1711,8 +1600,6 @@ async function renderRealidad(){
   document.getElementById('btnP5').disabled=false;
 }
 
-// Estado temporal mientras Gemini genera la ficha por primera vez para una
-// carrera que todavía no existe en carrera_detalle.
 function pintarRealidadCargando(){
   document.getElementById('carreraDesc5').textContent = 'Generando información actualizada con IA para esta carrera, un momento…';
   document.getElementById('sueldoJunior').textContent = 'S/. …';
@@ -1726,25 +1613,43 @@ function pintarRealidadCargando(){
   document.getElementById('btnP5').disabled=true;
 }
 
-// Llama a la Edge Function (Supabase + Gemini) que genera y guarda en
-// carrera_detalle la ficha de UNA carrera puntual. La función solo devuelve
-// un resumen de éxito/error (no el detalle completo), así que después de
-// llamarla leemos la fila recién guardada directo desde Supabase.
-async function generarDetalleCarreraConIA(carreraFamiliaId, nombreCarrera){
-  try{
-    const res = await fetch(EDGE_FN_GENERAR_DETALLE, {
-      method:'POST',
-      headers:{ 'Content-Type':'application/json', 'Authorization':`Bearer ${SUPABASE_ANON_KEY}` },
-      body: JSON.stringify({ carrera_familia_id: carreraFamiliaId, nombre: nombreCarrera })
-    });
-    if(!res.ok) throw new Error('HTTP '+res.status);
-    const { data, error } = await sb.from('carrera_detalle').select('*').eq('carrera_familia_id', carreraFamiliaId).maybeSingle();
-    if(error) throw error;
-    return data || null;
-  }catch(e){
-    console.error('No se pudo generar el detalle de la carrera con IA:', e);
-    return null;
+async function reintentarRealidad(){
+  play('tap');
+  await renderRealidad();
+}
+
+async function generarDetalleCarreraConIA(carreraFamiliaId, nombreCarrera, intentos = 2){
+  for(let intento = 1; intento <= intentos; intento++){
+    try{
+      const res = await fetch(EDGE_FN_GENERAR_DETALLE, {
+        method:'POST',
+        headers:{ 'Content-Type':'application/json', 'Authorization':`Bearer ${SUPABASE_ANON_KEY}` },
+        body: JSON.stringify({ carrera_familia_id: carreraFamiliaId, nombre: nombreCarrera })
+      });
+      const bodyTxt = await res.text().catch(()=> '');
+
+      if(!res.ok){
+        console.error(`[Realidad] "${nombreCarrera}" — intento ${intento}/${intentos} falló con HTTP ${res.status}:`, bodyTxt);
+        if(intento < intentos){ await new Promise(r=>setTimeout(r, 900*intento)); continue; }
+        return null;
+      }
+
+      const { data, error } = await sb.from('carrera_detalle').select('*').eq('carrera_familia_id', carreraFamiliaId).maybeSingle();
+      if(error){ console.error(`[Realidad] Error leyendo carrera_detalle para "${nombreCarrera}":`, error); throw error; }
+
+      if(!data){
+        console.warn(`[Realidad] "${nombreCarrera}" — la función respondió OK (intento ${intento}/${intentos}) pero no hay fila en carrera_detalle. Respuesta: ${bodyTxt}`);
+        if(intento < intentos){ await new Promise(r=>setTimeout(r, 900*intento)); continue; }
+        return null;
+      }
+      return data;
+    }catch(e){
+      console.error(`[Realidad] Excepción generando "${nombreCarrera}" (intento ${intento}/${intentos}):`, e);
+      if(intento >= intentos) return null;
+      await new Promise(r=>setTimeout(r, 900*intento));
+    }
   }
+  return null;
 }
 
 /* ===================== PANTALLA 6: INSTITUCIONES ===================== */
@@ -1762,8 +1667,6 @@ async function renderInstituciones(){
 
   const wrap = document.getElementById('instituciones');
   wrap.innerHTML = '<div class="loading-row"><span class="spinner-mini"></span>Buscando instituciones reales en tu zona…</div>';
-  // Guardamos la elección previa para poder resaltarla de nuevo si sigue
-  // disponible tras volver a cargar la lista (por ejemplo al retroceder).
   const institucionPrevia = state.institucionElegida;
   document.getElementById('btnP6').disabled=true;
 
@@ -1784,10 +1687,6 @@ async function renderInstituciones(){
   const institutos = (resultado.institutos||[]).filter(i => (i.costo_min ?? 0) <= montoMax);
   const universidades = (resultado.universidades||[]).filter(u => (u.costo_min ?? 0) <= montoMax);
 
-  // Tarjeta reutilizable. `ubicacionTxt` reemplaza el antiguo "state.destino"
-  // fijo: cuando la opción viene del fallback nacional (otro departamento
-  // distinto al que el usuario eligió), necesitamos mostrar la ubicación
-  // REAL de esa institución, no la que el usuario pidió.
   const crearCard = (nombre, provincia, tipo, gestion, costoMin, costoMax, fuente, ubicacionTxt, esOtroDepartamento)=>{
     const card = document.createElement('div');
     const estaSeleccionada = nombre===institucionPrevia;
@@ -1812,7 +1711,6 @@ async function renderInstituciones(){
 
   wrap.innerHTML='';
 
-  // ---- Caso normal: sí hay opciones en el departamento que el usuario eligió ----
   if(institutos.length>0 || universidades.length>0){
     document.getElementById('instFiltroNota').textContent =
       `${institutos.length} instituto(s) verificados en nuestra base + ${universidades.length} universidad(es) sugeridas por IA para esta búsqueda.`;
@@ -1835,9 +1733,6 @@ async function renderInstituciones(){
     return;
   }
 
-  // ---- Caso vacío en el departamento pedido: usar el fallback nacional
-  // que el backend ya calculó en `resultado.alternativas` (antes se
-  // ignoraba por completo). ----
   document.getElementById('instFiltroNota').textContent =
     `No encontramos ${escapeHtml(carrera)} en ${escapeHtml(state.destino)} dentro de tu presupuesto.`;
 
@@ -1894,14 +1789,130 @@ async function renderInstituciones(){
   }
 }
 
+/* ===================== SUB-PASO 8a: PREPLAN (contexto extra para la IA) ===================== */
+const PREGUNTAS_PREPLAN = [
+  {
+    clave:'familia',
+    pregunta: ()=> `¿Tienes algún familiar, amigo cercano o conocido en ${state.destinoProv||state.destino||'la zona donde estudiarás'}?`,
+    tipo:'chips',
+    opciones:[
+      {label:'Sí, viven cerca de la institución', val:'cerca'},
+      {label:'Sí, pero viven lejos de ahí', val:'lejos'},
+      {label:'No, sería la primera vez que voy solo/a', val:'ninguno'},
+    ]
+  },
+  {
+    clave:'dondeTrabajar',
+    pregunta: ()=> `Cuando termines de estudiar, ¿dónde te imaginas trabajando?`,
+    tipo:'chips',
+    opciones:[
+      {label:'En una empresa privada', val:'empresa_privada'},
+      {label:'En el Estado / sector público', val:'sector_publico'},
+      {label:'En mi propio negocio', val:'negocio_propio'},
+      {label:'Fuera del Perú', val:'extranjero'},
+      {label:'Todavía no lo sé', val:'no_sabe'},
+    ]
+  },
+  {
+    clave:'necesitaTrabajar',
+    pregunta: ()=> `¿Necesitarías trabajar mientras estudias para cubrir gastos?`,
+    tipo:'chips',
+    opciones:[
+      {label:'Sí, necesito trabajar sí o sí', val:'si'},
+      {label:'Tal vez, según el semestre', val:'tal_vez'},
+      {label:'No, mi familia cubre todo', val:'no'},
+    ]
+  },
+  {
+    clave:'notas',
+    pregunta: ()=> `¿Hay algo más que debamos saber para armar tu plan? (opcional)`,
+    tipo:'texto',
+  },
+];
+
+function iniciarPreplanChat(){
+  document.getElementById('preplanWrap').style.display='flex';
+  document.getElementById('preplanWrap').style.flexDirection='column';
+  document.getElementById('preplanWrap').style.gap='16px';
+  document.getElementById('planContentWrap').style.display='none';
+  state.preplanIndex = 0;
+  document.getElementById('preplanMensajes').innerHTML='';
+  pintarPreguntaPreplan();
+}
+
+function pintarProgresoPreplan(){
+  const wrap = document.getElementById('preplanProgress');
+  wrap.innerHTML = PREGUNTAS_PREPLAN.map((_,i)=>`<span class="${i<state.preplanIndex?'done':''}"></span>`).join('');
+}
+
+function pintarPreguntaPreplan(){
+  pintarProgresoPreplan();
+  const total = PREGUNTAS_PREPLAN.length;
+  const opcionesWrap = document.getElementById('preplanOpciones');
+  opcionesWrap.innerHTML='';
+
+  if(state.preplanIndex >= total){
+    terminarPreplan();
+    return;
+  }
+
+  const p = PREGUNTAS_PREPLAN[state.preplanIndex];
+  agregarBurbujaPreplan(p.pregunta(), 'model');
+
+  if(p.tipo==='chips'){
+    p.opciones.forEach(op=>{
+      const div = document.createElement('div');
+      div.className='q-opt';
+      div.innerHTML = `<span>${escapeHtml(op.label)}</span>`;
+      div.onclick = ()=>{ play('select'); responderPreplan(p.clave, op.val, op.label); };
+      opcionesWrap.appendChild(div);
+    });
+  } else if(p.tipo==='texto'){
+    const row = document.createElement('div');
+    row.className='chat-input-row';
+    row.innerHTML = `<input type="text" id="preplanInputTexto" placeholder="Escribe aquí o deja vacío y continúa"><button class="btn-primary">Continuar</button>`;
+    const input = row.querySelector('input');
+    const btn = row.querySelector('button');
+    const enviar = ()=>{ play('select'); responderPreplan(p.clave, input.value.trim(), input.value.trim()||'(sin comentarios)'); };
+    btn.onclick = enviar;
+    input.onkeydown = (e)=>{ if(e.key==='Enter'){ e.preventDefault(); enviar(); } };
+    opcionesWrap.appendChild(row);
+  }
+}
+
+function agregarBurbujaPreplan(texto, rol){
+  const cont = document.getElementById('preplanMensajes');
+  const div = document.createElement('div');
+  div.className = `chat-bubble ${rol}`;
+  div.textContent = texto;
+  cont.appendChild(div);
+  cont.scrollTop = cont.scrollHeight;
+}
+
+function responderPreplan(clave, valor, labelVisible){
+  state.contextoAdicional[clave] = valor;
+  agregarBurbujaPreplan(labelVisible, 'user');
+  state.preplanIndex++;
+  setTimeout(pintarPreguntaPreplan, 260);
+}
+
+function saltarPreplan(){
+  play('back');
+  terminarPreplan();
+}
+
+function terminarPreplan(){
+  document.getElementById('preplanWrap').style.display='none';
+  document.getElementById('planContentWrap').style.display='flex';
+  document.getElementById('planContentWrap').style.flexDirection='column';
+  document.getElementById('planContentWrap').style.gap='22px';
+  renderPlanFinal();
+}
+
 /* ===================== PANTALLA 8: PLAN FINAL ===================== */
-// Genera el plan de vida REAL con IA (Gemini, vía Edge Function), organizado
-// en fases por línea de tiempo. Si por algún motivo la IA falla, cae a un
-// plan mínimo de respaldo (no genérico-genérico, igual usa los datos del
-// usuario) para que la pantalla nunca quede vacía.
 async function renderPlanFinal(){
   document.getElementById('planTitulo').textContent =
-    `¡Felicidades, ${state.nombre||'amig@'}! Aquí tienes tu hoja de ruta para estudiar ${state.carreraElegida} en ${state.institucionElegida}.`;
+    `¡Felicidades, ${state.nombre||'amig@'}! Aquí tienes tu hoja de ruta para estudiar ${state.carreraElegida||'tu carrera elegida'} en ${state.institucionElegida||'tu institución elegida'}.`;
 
   const wrap = document.getElementById('planFasesWrap');
   const btnDescargar = document.getElementById('btnDescargarPlan');
@@ -1921,6 +1932,7 @@ async function renderPlanFinal(){
         carrera_elegida: state.carreraElegida, institucion_elegida: state.institucionElegida,
         destino_depto: state.destino, destino_prov: state.destinoProv,
         presupuesto_cat: state.presupuestoCat, presupuesto_monto: state.presupuestoMonto,
+        contexto_adicional: state.contextoAdicional,
         detalle_carrera: detalle ? {
           descripcion: detalle.descripcion, sueldo_junior: detalle.sueldo_junior,
           sueldo_senior: detalle.sueldo_senior, demanda: detalle.demanda,
@@ -1936,23 +1948,21 @@ async function renderPlanFinal(){
     btnDescargar.disabled = false;
   }catch(e){
     console.error('No se pudo generar el plan con IA:', e);
-    // Respaldo mínimo si Gemini falla, sigue usando datos reales del usuario.
     state.planFases = [
       { plazo:'Próximos 30 días', titulo:'Prepárate para el examen', acciones:[
-        `Repasa el temario de admisión de ${state.institucionElegida}.`,
+        `Repasa el temario de admisión de ${state.institucionElegida||'la institución elegida'}.`,
         `Dedica al menos 45 minutos diarios este mes a razonamiento matemático y comprensión lectora.`
       ]},
       { plazo:'En 6 meses', titulo:'Transición', acciones:[
         state.destino===state.depto
           ? `Aprovecha tu red local en ${state.depto}: visita la institución y habla con estudiantes actuales.`
-          : `Organiza alojamiento y presupuesto en ${state.destino} con al menos 2 meses de anticipación.`
+          : `Organiza alojamiento y presupuesto en ${state.destino||'tu ciudad de destino'} con al menos 2 meses de anticipación.`
       ]},
     ];
     renderFasesPlan(state.planFases, true);
     btnDescargar.disabled = false;
   }
 
-  // Reinicia el chat cada vez que se entra a esta pantalla con un plan nuevo.
   state.chatHistorial = [];
   document.getElementById('chatMensajes').innerHTML = '';
 }
@@ -2028,23 +2038,24 @@ async function enviarPreguntaChat(){
 
 // Carga logo.png como data URL una sola vez (se reutiliza en cada página del PDF).
 async function obtenerLogoDataURL(){
-  if(window._logoDataUrl) return window._logoDataUrl;
-  const res = await fetch('logo.png');
-  const blob = await res.blob();
-  window._logoDataUrl = await new Promise((resolve, reject)=>{
-    const reader = new FileReader();
-    reader.onload = ()=>resolve(reader.result);
-    reader.onerror = reject;
-    reader.readAsDataURL(blob);
-  });
+  if(window._logoDataUrl !== undefined) return window._logoDataUrl;
+  try{
+    const res = await fetch('logo.png');
+    if(!res.ok) throw new Error('logo.png no encontrado (HTTP '+res.status+')');
+    const blob = await res.blob();
+    window._logoDataUrl = await new Promise((resolve, reject)=>{
+      const reader = new FileReader();
+      reader.onload = ()=>resolve(reader.result);
+      reader.onerror = reject;
+      reader.readAsDataURL(blob);
+    });
+  }catch(e){
+    console.warn('No se pudo cargar logo.png para el PDF, se usará un logo vectorial de respaldo:', e);
+    window._logoDataUrl = null;
+  }
   return window._logoDataUrl;
 }
 
-// Genera y descarga un PDF real del Plan de Vida usando jsPDF (cargado
-// desde CDN en el <head>). Si la librería no llegó a cargar (por ejemplo,
-// por falta de conexión o un bloqueador), avisa al usuario en vez de
-// fallar en silencio. Usa las fases generadas por IA (state.planFases) en
-// vez de texto fijo, y estampa el logo de Diodo en la esquina de cada hoja.
 async function descargarPlanPDF(){
   if(!window.jspdf || !window.jspdf.jsPDF){
     toast('No se pudo cargar el generador de PDF. Revisa tu conexión e intenta de nuevo.', true);
@@ -2061,13 +2072,20 @@ async function descargarPlanPDF(){
     const marginX = 20;
     let y = 22;
 
-    // Dibuja la franja naranja + el logo en la esquina de la página actual.
     const dibujarEncabezadoPagina = ()=>{
-      doc.setFillColor(255,122,48); // --diode
+      doc.setFillColor(255,122,48);
       doc.rect(0, 0, 210, 12, 'F');
       if(logoUrl){
-        try{ doc.addImage(logoUrl, 'PNG', 178, 18, 14, 14); }catch(e){ console.error('No se pudo insertar el logo en el PDF:', e); }
+        try{ doc.addImage(logoUrl, 'PNG', 178, 18, 14, 14); return; }
+        catch(e){ console.error('No se pudo insertar logo.png en el PDF, se usa el respaldo vectorial:', e); }
       }
+      doc.setFillColor(255,122,48);
+      doc.circle(185, 25, 7, 'F');
+      doc.setFontSize(11);
+      doc.setTextColor(255,255,255);
+      doc.setFont(undefined, 'bold');
+      doc.text('D', 185, 27.5, { align:'center' });
+      doc.setFont(undefined, 'normal');
     };
     const nuevaPagina = ()=>{
       doc.addPage();
@@ -2077,7 +2095,6 @@ async function descargarPlanPDF(){
 
     dibujarEncabezadoPagina();
 
-    // ---- Encabezado ----
     doc.setFontSize(20);
     doc.setTextColor(20,20,20);
     doc.text('Diodo — Tu Plan de Vida', marginX, y);
@@ -2088,7 +2105,6 @@ async function descargarPlanPDF(){
     doc.text(`Generado el ${new Date().toLocaleDateString('es-PE')}`, marginX, y);
     y += 12;
 
-    // ---- Datos del estudiante ----
     doc.setFontSize(13);
     doc.setTextColor(20,20,20);
     doc.text(`${state.nombre||''} ${state.apellido||''}`.trim() || 'Estudiante', marginX, y);
@@ -2099,12 +2115,10 @@ async function descargarPlanPDF(){
     doc.text(`Institución: ${state.institucionElegida||'—'}`, marginX, y); y += 6;
     doc.text(`Destino: ${state.destinoProv?state.destinoProv+', ':''}${state.destino||'—'}`, marginX, y); y += 10;
 
-    // ---- Línea separadora ----
     doc.setDrawColor(220,220,220);
     doc.line(marginX, y, 190, y);
     y += 10;
 
-    // ---- Fases del plan (generadas por IA, con línea de tiempo real) ----
     state.planFases.forEach(fase=>{
       if(y > 250){ nuevaPagina(); }
       doc.setFontSize(10);
@@ -2128,7 +2142,6 @@ async function descargarPlanPDF(){
       y += 8;
     });
 
-    // ---- Pie de página ----
     doc.setFontSize(9);
     doc.setTextColor(150,150,150);
     doc.text('Generado con Diodo — diodo-five.vercel.app', marginX, 287);
@@ -2146,8 +2159,6 @@ async function descargarPlanPDF(){
 (async function init(){
   await Promise.all([initUbigeoPerfil(), cargarPreguntas(), cargarFamiliasYDetalle()]);
 
-  // Si el usuario vuelve de un login con Google, detectamos la sesión aquí
-  // y restauramos el `state` que guardamos en sessionStorage antes de redirigir.
   try{
     const { data: { session } } = await sb.auth.getSession();
     if(session && session.user){
