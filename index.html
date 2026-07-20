@@ -648,7 +648,7 @@ document.addEventListener('click', ()=>{ ensureAudio(); }, {once:true});
 
 /* ===================== ESTADO GLOBAL ===================== */
 const state = {
-  step:0, guest:false, sessionId:null,
+  step:0, guest:false, sessionId:null, userId:null, userEmail:null,
   nombre:'', apellido:'', edad:'', sexo:'',
   deptoId:null, provId:null, distId:null, depto:'', prov:'', dist:'',
   situacion:'', grado:'', colegio:'',
@@ -708,6 +708,8 @@ async function cerrarSesion(){
   document.getElementById('accountMenu').classList.remove('show');
   await sb.auth.signOut();
   state.guest = true;
+  state.userId = null;
+  state.userEmail = null;
   toast('Sesión cerrada.');
   renderAccountBadge(null);
 }
@@ -793,12 +795,48 @@ async function guardarRespuestaEnBD(){
       institucion_elegida: state.institucionElegida,
       es_invitado: !!state.guest,
       hobbies: state.hobbies,
+      progreso_paso: state.step,
+      progreso_state: { ...state, qIndex },
+      completado: true,
       updated_at: new Date().toISOString()
     };
     const { error } = await sb.from('respuestas_usuarios').upsert(payload, { onConflict: 'id' });
     if(error) console.error('No se pudo guardar la respuesta en Supabase:', error);
   }catch(e){
     console.error('Error guardando respuesta:', e);
+  }
+}
+
+/* ===================== GUARDADO DE PROGRESO (para retomar el test) =====================
+   A diferencia de guardarRespuestaEnBD (que se llama una sola vez, al llegar
+   al paso final), esto se llama en CADA cambio de paso mientras el usuario
+   está logueado, para poder restaurar su avance si cierra la pestaña y
+   vuelve otro día — incluso desde otro dispositivo, porque queda ligado a
+   su user_id en Supabase (no a sessionStorage). No se guarda nada de esto
+   para invitados. */
+let _guardandoProgreso = false;
+async function guardarProgreso(){
+  if(state.guest || !state.userId) return; // solo usuarios logueados con Google
+  if(_guardandoProgreso) return; // evita upserts superpuestos si el usuario navega rápido
+  _guardandoProgreso = true;
+  try{
+    const payload = {
+      id: state.sessionId,
+      user_id: state.userId,
+      email: state.userEmail || null,
+      nombre: state.nombre,
+      es_invitado: false,
+      progreso_paso: state.step,
+      progreso_state: { ...state, qIndex },
+      completado: false,
+      updated_at: new Date().toISOString()
+    };
+    const { error } = await sb.from('respuestas_usuarios').upsert(payload, { onConflict: 'id' });
+    if(error) console.error('No se pudo guardar el progreso:', error);
+  }catch(e){
+    console.error('Error guardando progreso:', e);
+  }finally{
+    _guardandoProgreso = false;
   }
 }
 
@@ -935,6 +973,7 @@ function goTo(step){
   if(step===6) renderInstituciones();
   if(step===7) document.getElementById('gateNombre').textContent = `¡Excelente elección, ${state.nombre||'amig@'}!`;
   if(step===8){ iniciarPreplanChat(); guardarRespuestaEnBD(); }
+  else if(step>=1){ guardarProgreso(); } // autosave de avance para usuarios logueados (paso 8 ya lo guarda completo arriba)
 }
 function renderRail(){
   const rail = document.getElementById('rail');
@@ -1940,9 +1979,18 @@ async function renderPlanFinal(){
         } : null
       })
     });
-    if(!res.ok) throw new Error('HTTP '+res.status);
-    const data = await res.json();
-    if(!data.fases?.length) throw new Error('Sin fases');
+    const bodyTxt = await res.text();
+    if(!res.ok){
+      console.error(`[PlanVida] HTTP ${res.status} llamando a gemini-plan-vida:`, bodyTxt);
+      throw new Error('HTTP '+res.status);
+    }
+    let data;
+    try{ data = JSON.parse(bodyTxt); }
+    catch(e){ console.error('[PlanVida] La función respondió OK pero el body no es JSON válido:', bodyTxt); throw e; }
+    if(!data.fases?.length){
+      console.error('[PlanVida] La función respondió OK pero sin "fases". Body completo:', data);
+      throw new Error('Sin fases');
+    }
     state.planFases = data.fases;
     renderFasesPlan(state.planFases);
     btnDescargar.disabled = false;
@@ -2162,11 +2210,16 @@ async function descargarPlanPDF(){
   try{
     const { data: { session } } = await sb.auth.getSession();
     if(session && session.user){
+      state.userId = session.user.id;
+      state.userEmail = session.user.email;
+
       const savedState = sessionStorage.getItem('diodo_state');
       const savedNextStep = sessionStorage.getItem('diodo_next_step');
       const savedQIndex = sessionStorage.getItem('diodo_qIndex');
 
       if(savedState){
+        // Venimos de un redirect de login a mitad del test: restauramos lo
+        // que había en memoria justo antes de ir a Google.
         try{
           const parsed = JSON.parse(savedState);
           Object.assign(state, parsed);
@@ -2175,14 +2228,48 @@ async function descargarPlanPDF(){
         sessionStorage.removeItem('diodo_state');
         sessionStorage.removeItem('diodo_next_step');
         sessionStorage.removeItem('diodo_qIndex');
+
+        state.guest = false;
+        state.userId = session.user.id;
+        state.userEmail = session.user.email;
+        state.nombre = state.nombre || session.user.user_metadata?.given_name || session.user.user_metadata?.full_name || '';
+        renderAccountBadge(session.user);
+        goTo(savedNextStep ? Number(savedNextStep) : 1);
+        return;
       }
 
+      // No hay nada en sessionStorage: puede ser un usuario que vuelve otro
+      // día con la sesión aún activa. Buscamos si dejó un test a medias
+      // guardado en Supabase (progreso_state) para retomarlo.
       state.guest = false;
       state.nombre = state.nombre || session.user.user_metadata?.given_name || session.user.user_metadata?.full_name || '';
       renderAccountBadge(session.user);
 
-      const destino = savedNextStep ? Number(savedNextStep) : 1;
-      goTo(destino);
+      try{
+        const { data: prog, error: progError } = await sb
+          .from('respuestas_usuarios')
+          .select('progreso_state, progreso_paso, completado')
+          .eq('user_id', session.user.id)
+          .eq('completado', false)
+          .not('progreso_state', 'is', null)
+          .order('updated_at', { ascending:false })
+          .limit(1)
+          .maybeSingle();
+
+        if(progError){ console.error('No se pudo consultar progreso guardado:', progError); }
+        else if(prog && prog.progreso_state && prog.progreso_paso>0){
+          Object.assign(state, prog.progreso_state);
+          qIndex = prog.progreso_state.qIndex || 0;
+          state.guest = false;
+          state.userId = session.user.id;
+          state.userEmail = session.user.email;
+          toast(`¡Hola de nuevo, ${state.nombre||''}! Retomamos donde lo dejaste.`);
+          goTo(prog.progreso_paso);
+          return;
+        }
+      }catch(e){ console.error('Error restaurando progreso desde Supabase:', e); }
+
+      goTo(1);
       return;
     } else {
       renderAccountBadge(null);
