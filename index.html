@@ -613,10 +613,10 @@ select:disabled, input:disabled{opacity:.4; cursor:not-allowed;}
    ===================================================================== */
 const SUPABASE_URL = "https://fybsukirjnbmdjqogdue.supabase.co";
 const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZ5YnN1a2lyam5ibWRqcW9nZHVlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODIyNjMzMjIsImV4cCI6MjA5NzgzOTMyMn0.vUQhlPrlILiz5EcY7x5tF6x7olqe7Dao7CUDZ1T2S84";
-const EDGE_FN_BUSCAR_INSTITUCIONES = `${SUPABASE_URL}/functions/v1/gemini-buscar-instituciones`;
+const EDGE_FN_BUSCAR_INSTITUCIONES = `${SUPABASE_URL}/functions/v1/rapid-worker`; // = gemini-buscar-instituciones
 const EDGE_FN_GENERAR_DETALLE = `${SUPABASE_URL}/functions/v1/gemini-realidad-carrera`;
-const EDGE_FN_PLAN_VIDA = `${SUPABASE_URL}/functions/v1/gemini-plan-vida`;
-const EDGE_FN_CHAT_PLAN = `${SUPABASE_URL}/functions/v1/gemini-chat-plan`;
+const EDGE_FN_PLAN_VIDA = `${SUPABASE_URL}/functions/v1/clever-processor`; // = gemini-plan-vida
+const EDGE_FN_CHAT_PLAN = `${SUPABASE_URL}/functions/v1/bright-service`; // = gemini-chat-plan
 
 const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
