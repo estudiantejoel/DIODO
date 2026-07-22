@@ -807,7 +807,10 @@ async function guardarRespuestaEnBD(){
       updated_at: new Date().toISOString()
     };
     const { error } = await sb.from('respuestas_usuarios').upsert(payload, { onConflict: 'id' });
-    if(error) console.error('No se pudo guardar la respuesta en Supabase:', error);
+    if(error){
+      console.error('No se pudo guardar la respuesta en Supabase → code:', error.code,
+        '| message:', error.message, '| details:', error.details, '| hint:', error.hint);
+    }
   }catch(e){
     console.error('Error guardando respuesta:', e);
   }
@@ -838,7 +841,10 @@ async function guardarProgreso(){
       updated_at: new Date().toISOString()
     };
     const { error } = await sb.from('respuestas_usuarios').upsert(payload, { onConflict: 'id' });
-    if(error) console.error('No se pudo guardar el progreso:', error);
+    if(error){
+      console.error('No se pudo guardar el progreso → code:', error.code,
+        '| message:', error.message, '| details:', error.details, '| hint:', error.hint);
+    }
   }catch(e){
     console.error('Error guardando progreso:', e);
   }finally{
