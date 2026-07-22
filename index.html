@@ -1599,8 +1599,53 @@ function renderMatch(){
 }
 
 /* ===================== PANTALLA 5: REALIDAD (leída de carrera_detalle, actualizada por Gemini) ===================== */
+
+// Cuando el usuario escribió su carrera a mano y no coincidió con ninguna
+// "familia" existente (state.carreraElegidaFamiliaId queda null / 'custom'),
+// no hay forma de generar/cachear su detalle con IA porque todo el
+// pipeline (generarDetalleCarreraConIA -> función Edge -> carrera_detalle)
+// está anclado a un carrera_familia_id real.
+//
+// Esta función crea esa familia sobre la marcha: inserta una fila nueva en
+// carrera_familias con pesos RIASEC vacíos ({}) — el resto del código ya
+// sabe manejar familias sin pesos propios (cae al filtro de respaldo en
+// buscarPesosRespaldo/computeMatches) — y a partir de ahí la carrera se
+// comporta como cualquier otra familia: puede generar y cachear su detalle.
+async function resolverOCrearFamiliaParaCarreraCustom(){
+  if(state.carreraElegidaFamiliaId || !state.carreraElegida) return;
+
+  // Por si otra sesión ya la creó antes de que recargaras DB.familias, o
+  // por si el match aproximado falló mientras esto quedaba pendiente.
+  const existente = buscarFamiliaAproximada(state.carreraElegida);
+  if(existente){
+    state.carreraElegidaFamiliaId = existente.id;
+    return;
+  }
+
+  try{
+    const { data, error } = await sb
+      .from('carrera_familias')
+      .insert({ nombre: state.carreraElegida, pesos: {} })
+      .select()
+      .single();
+    if(error){
+      console.error('No se pudo crear la familia para la carrera escrita a mano:', error.code, error.message, error.details, error.hint);
+      return;
+    }
+    DB.familias.push(data);
+    state.carreraElegidaFamiliaId = data.id;
+  }catch(e){
+    console.error('Excepción creando familia custom:', e);
+  }
+}
+
 async function renderRealidad(){
   document.getElementById('carreraNombre5').textContent = state.carreraElegida;
+
+  if(!state.carreraElegidaFamiliaId && state.carreraElegida){
+    await resolverOCrearFamiliaParaCarreraCustom();
+  }
+
   let detalle = state.carreraElegidaFamiliaId ? DB.detallePorFamilia[state.carreraElegidaFamiliaId] : null;
   let esAproximado = false;
   if(!detalle){
