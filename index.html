@@ -2120,9 +2120,11 @@ async function descargarPlanPDF(){
     const marginX = 20;
     let y = 22;
 
-    const dibujarEncabezadoPagina = ()=>{
+    const dibujarEncabezadoPagina = (esPrimeraPagina)=>{
       doc.setFillColor(255,122,48);
       doc.rect(0, 0, 210, 12, 'F');
+      // El logo (imagen o "D" de respaldo) solo se dibuja en la primera página.
+      if(!esPrimeraPagina) return;
       if(logoUrl){
         try{ doc.addImage(logoUrl, 'PNG', 178, 18, 14, 14); return; }
         catch(e){ console.error('No se pudo insertar logo.png en el PDF, se usa el respaldo vectorial:', e); }
@@ -2137,11 +2139,11 @@ async function descargarPlanPDF(){
     };
     const nuevaPagina = ()=>{
       doc.addPage();
-      dibujarEncabezadoPagina();
+      dibujarEncabezadoPagina(false);
       y = 22;
     };
 
-    dibujarEncabezadoPagina();
+    dibujarEncabezadoPagina(true);
 
     doc.setFontSize(20);
     doc.setTextColor(20,20,20);
@@ -2183,8 +2185,11 @@ async function descargarPlanPDF(){
         if(y > 265){ nuevaPagina(); }
         doc.setFontSize(11);
         doc.setTextColor(50,50,50);
-        const lineas = doc.splitTextToSize(`•  ${accion}`, 168);
-        doc.text(lineas, marginX+2, y);
+        const anchoTexto = 163;
+        // La viñeta va aparte para no romper la justificación del párrafo.
+        doc.text('•', marginX+2, y);
+        const lineas = doc.splitTextToSize(accion, anchoTexto);
+        doc.text(lineas, marginX+7, y, { align:'justify', maxWidth: anchoTexto });
         y += lineas.length * 5.5 + 3;
       });
       y += 8;
