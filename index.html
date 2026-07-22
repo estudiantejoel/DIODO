@@ -220,6 +220,11 @@ select:disabled, input:disabled{opacity:.4; cursor:not-allowed;}
 .plan-step h4{margin:0 0 4px; font-size:15px;}
 .plan-step p{margin:0; font-size:13px; color:var(--text-dim); line-height:1.5;}
 #planFasesWrap{display:flex; flex-direction:column; gap:12px; margin-bottom:6px;}
+#planFasesWrap.plan-actualizado{animation:planFlash 1.2s ease;}
+@keyframes planFlash{
+  0%{box-shadow:0 0 0 2px var(--current, #2dd4bf);}
+  100%{box-shadow:0 0 0 0 transparent;}
+}
 .plan-fase{border:1px solid var(--line); background:var(--surface); border-radius:14px; padding:16px 18px;}
 .plan-fase .plazo{display:inline-block; font-family:'JetBrains Mono',monospace; font-size:11px; letter-spacing:.04em; text-transform:uppercase; color:var(--diode-glow); background:rgba(255,122,48,.1); border:1px solid rgba(255,122,48,.25); border-radius:20px; padding:3px 10px; margin-bottom:8px;}
 .plan-fase h4{margin:0 0 8px; font-size:15px;}
@@ -2116,6 +2121,18 @@ async function enviarPreguntaChat(){
     if(!data.respuesta) throw new Error('Sin respuesta');
     agregarBurbujaChat(data.respuesta, 'model');
     state.chatHistorial.push({ rol:'model', texto:data.respuesta });
+
+    // Si el modelo detectó una corrección y nos devolvió el plan
+    // actualizado, lo aplicamos y volvemos a pintar la hoja de ruta.
+    if(Array.isArray(data.plan_fases) && data.plan_fases.length){
+      state.planFases = data.plan_fases;
+      renderFasesPlan(state.planFases);
+      const wrap = document.getElementById('planFasesWrap');
+      if(wrap){
+        wrap.classList.add('plan-actualizado');
+        setTimeout(()=>wrap.classList.remove('plan-actualizado'), 1200);
+      }
+    }
   }catch(e){
     console.error('Error en el chat:', e);
     burbujaCargando.remove();
