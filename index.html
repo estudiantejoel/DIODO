@@ -617,6 +617,7 @@ const EDGE_FN_BUSCAR_INSTITUCIONES = `${SUPABASE_URL}/functions/v1/rapid-worker`
 const EDGE_FN_GENERAR_DETALLE = `${SUPABASE_URL}/functions/v1/gemini-realidad-carrera`;
 const EDGE_FN_PLAN_VIDA = `${SUPABASE_URL}/functions/v1/clever-processor`; // = gemini-plan-vida
 const EDGE_FN_CHAT_PLAN = `${SUPABASE_URL}/functions/v1/bright-service`; // = gemini-chat-plan
+const EDGE_FN_PREPLAN_PREGUNTAS = `${SUPABASE_URL}/functions/v1/gemini-preplan-preguntas`; // ajusta el slug al que le pongas al desplegarla
 
 const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
@@ -660,7 +661,7 @@ const state = {
   institucionElegida:null,
   planFases:null, chatHistorial:[],
   contextoAdicional:{ familia:null, dondeTrabajar:null, necesitaTrabajar:null, notas:'' },
-  preplanIndex:0
+  preplanIndex:0, preplanPreguntas:null
 };
 // Cada visitante recibe un id de sesión propio para poder actualizar su
 // misma fila si retrocede y cambia algo, en vez de crear una fila duplicada.
@@ -1828,8 +1829,12 @@ async function renderInstituciones(){
   }
 }
 
-/* ===================== SUB-PASO 8a: PREPLAN (contexto extra para la IA) ===================== */
-const PREGUNTAS_PREPLAN = [
+/* ===================== SUB-PASO 8a: PREPLAN (contexto extra para la IA) =====================
+   Las preguntas ya NO son fijas: se le piden a Gemini (gemini-preplan-preguntas)
+   pasándole el contexto del estudiante, para que sean relevantes a SU carrera,
+   institución y situación. PREGUNTAS_PREPLAN_RESPALDO solo se usa si esa
+   llamada falla por completo (ej. sin conexión). */
+const PREGUNTAS_PREPLAN_RESPALDO = [
   {
     clave:'familia',
     pregunta: ()=> `¿Tienes algún familiar, amigo cercano o conocido en ${state.destinoProv||state.destino||'la zona donde estudiarás'}?`,
@@ -1869,37 +1874,75 @@ const PREGUNTAS_PREPLAN = [
   },
 ];
 
-function iniciarPreplanChat(){
+// Pide a Gemini las preguntas de seguimiento personalizadas para ESTE
+// estudiante (su carrera, institución, presupuesto, situación). Devuelve
+// siempre un arreglo con {clave, pregunta, tipo, opciones} — "pregunta" ya
+// es un string plano (no una función), a diferencia del respaldo estático.
+async function generarPreguntasPreplanConIA(){
+  const detalle = state.carreraElegidaFamiliaId ? DB.detallePorFamilia[state.carreraElegidaFamiliaId] : null;
+  try{
+    const res = await fetch(EDGE_FN_PREPLAN_PREGUNTAS, {
+      method:'POST',
+      headers:{ 'Content-Type':'application/json', 'Authorization':`Bearer ${SUPABASE_ANON_KEY}` },
+      body: JSON.stringify({
+        nombre: state.nombre, edad: state.edad, sexo: state.sexo,
+        situacion: state.situacion, colegio: state.colegio,
+        depto_residencia: state.depto, prov_residencia: state.prov,
+        carrera_elegida: state.carreraElegida, institucion_elegida: state.institucionElegida,
+        destino_depto: state.destino, destino_prov: state.destinoProv,
+        presupuesto_cat: state.presupuestoCat, presupuesto_monto: state.presupuestoMonto,
+        detalle_carrera: detalle ? {
+          ambitos: detalle.ambitos, cursos: detalle.cursos
+        } : null
+      })
+    });
+    if(!res.ok) throw new Error('HTTP '+res.status);
+    const data = await res.json();
+    if(!data.preguntas?.length) throw new Error('Sin preguntas');
+    return data.preguntas;
+  }catch(e){
+    console.error('No se pudieron generar las preguntas del preplan con IA, se usa el respaldo fijo:', e);
+    return PREGUNTAS_PREPLAN_RESPALDO.map(p => ({
+      clave: p.clave, pregunta: p.pregunta(), tipo: p.tipo, opciones: p.opciones || []
+    }));
+  }
+}
+
+async function iniciarPreplanChat(){
   document.getElementById('preplanWrap').style.display='flex';
   document.getElementById('preplanWrap').style.flexDirection='column';
   document.getElementById('preplanWrap').style.gap='16px';
   document.getElementById('planContentWrap').style.display='none';
   state.preplanIndex = 0;
   document.getElementById('preplanMensajes').innerHTML='';
+  document.getElementById('preplanOpciones').innerHTML = `<div class="loading-row"><span class="spinner-mini"></span>Preparando preguntas para tu caso…</div>`;
+  state.preplanPreguntas = await generarPreguntasPreplanConIA();
+  document.getElementById('preplanOpciones').innerHTML='';
   pintarPreguntaPreplan();
 }
 
 function pintarProgresoPreplan(){
   const wrap = document.getElementById('preplanProgress');
-  wrap.innerHTML = PREGUNTAS_PREPLAN.map((_,i)=>`<span class="${i<state.preplanIndex?'done':''}"></span>`).join('');
+  wrap.innerHTML = (state.preplanPreguntas||[]).map((_,i)=>`<span class="${i<state.preplanIndex?'done':''}"></span>`).join('');
 }
 
 function pintarPreguntaPreplan(){
   pintarProgresoPreplan();
-  const total = PREGUNTAS_PREPLAN.length;
+  const preguntas = state.preplanPreguntas||[];
+  const total = preguntas.length;
   const opcionesWrap = document.getElementById('preplanOpciones');
   opcionesWrap.innerHTML='';
 
-  if(state.preplanIndex >= total){
+  if(!total || state.preplanIndex >= total){
     terminarPreplan();
     return;
   }
 
-  const p = PREGUNTAS_PREPLAN[state.preplanIndex];
-  agregarBurbujaPreplan(p.pregunta(), 'model');
+  const p = preguntas[state.preplanIndex];
+  agregarBurbujaPreplan(typeof p.pregunta === 'function' ? p.pregunta() : p.pregunta, 'model');
 
   if(p.tipo==='chips'){
-    p.opciones.forEach(op=>{
+    (p.opciones||[]).forEach(op=>{
       const div = document.createElement('div');
       div.className='q-opt';
       div.innerHTML = `<span>${escapeHtml(op.label)}</span>`;
