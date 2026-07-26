@@ -1330,7 +1330,7 @@ async function generarPreguntasPreplanConIA(){
       body: JSON.stringify({
         nombre: state.nombre, edad: state.edad, sexo: state.sexo,
         situacion: state.situacion, colegio: state.colegio,
-        depto_residencia: state.depto, prov_residencia: state.prov,
+        depto_residencia: state.depto, prov_residencia: state.prov, dist_residencia: state.dist,
         carrera_elegida: state.carreraElegida, institucion_elegida: state.institucionElegida,
         destino_depto: state.destino, destino_prov: state.destinoProv,
         presupuesto_cat: state.presupuestoCat, presupuesto_monto: state.presupuestoMonto,
@@ -1453,7 +1453,7 @@ async function renderPlanFinal(){
       body: JSON.stringify({
         nombre: state.nombre, edad: state.edad, sexo: state.sexo,
         situacion: state.situacion, colegio: state.colegio,
-        depto_residencia: state.depto, prov_residencia: state.prov,
+        depto_residencia: state.depto, prov_residencia: state.prov, dist_residencia: state.dist,
         carrera_elegida: state.carreraElegida, institucion_elegida: state.institucionElegida,
         destino_depto: state.destino, destino_prov: state.destinoProv,
         presupuesto_cat: state.presupuestoCat, presupuesto_monto: state.presupuestoMonto,
