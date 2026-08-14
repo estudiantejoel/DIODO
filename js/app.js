@@ -1021,7 +1021,7 @@ function renderMatch(){
   document.getElementById('btnP4').disabled = !state.carreraElegida;
 }
 
-/* ===================== PANTALLA 5: REALIDAD (leída de carrera_detalle, actualizada por Gemini) ===================== */
+/* ===================== PANTALLA 5: BAÑO DE REALIDAD (leída de carrera_detalle, actualizada por Gemini) ===================== */
 
 // Cuando el usuario escribió su carrera a mano y no coincidió con ninguna
 // "familia" existente (state.carreraElegidaFamiliaId queda null / 'custom'),
@@ -1173,11 +1173,16 @@ async function generarDetalleCarreraConIA(carreraFamiliaId, nombreCarrera, inten
 
 /* ===================== PANTALLA 6: INSTITUCIONES ===================== */
 
-// [FIX #6] Se aplica el mismo patrón de reintento (2-3 intentos con espera
-// creciente entre cada uno) que ya usaba generarDetalleCarreraConIA, para
-// que esta llamada a la IA tampoco muestre un error directo al alumno ante
-// una falla temporal.
-async function fetchInstitucionesConReintento(payload, intentos = 3){
+// [FIX #6, ajustado] Antes reintentaba hasta 3 veces si la función fallaba.
+// Eso multiplicaba el gasto de cuota de Gemini: el backend (index.ts) ya
+// rota automáticamente entre TODAS tus API keys disponibles en cada
+// llamada, así que un solo intento desde el front-end ya prueba con todas
+// las keys igual. Reintentar aquí encima de eso multiplica x(número de
+// keys) el gasto de cuota por cada búsqueda que falla — con 7 keys, 3
+// intentos = hasta 21 peticiones reales a Gemini por una sola búsqueda del
+// alumno. Por eso baja a 1: si falla, falla una sola vez, y el detalle del
+// error queda en los logs de Supabase para diagnosticar sin quemar cuota.
+async function fetchInstitucionesConReintento(payload, intentos = 1){
   for(let intento = 1; intento <= intentos; intento++){
     try{
       const res = await fetch(EDGE_FN_BUSCAR_INSTITUCIONES, {
@@ -1674,53 +1679,22 @@ async function descargarPlanPDF(){
     const marginX = 20;
     let y = 22;
 
-    // [FIX — logo como insignia] Antes el logo se dibujaba como un
-    // cuadrado de 14x14mm metido en una esquina, encima de la barra
-    // naranja, sin relación visual con ella. Ahora se dibuja como un
-    // medallón circular que se apoya sobre el BORDE de la barra —
-    // mitad dentro de la franja naranja, mitad sobre el fondo blanco —
-    // con una sombra suave detrás, que es lo que da el efecto de
-    // "insignia prendida al costado" en vez de logo flotando.
     const dibujarEncabezadoPagina = (esPrimeraPagina)=>{
       doc.setFillColor(255,122,48);
       doc.rect(0, 0, 210, 12, 'F');
-      // La insignia (logo o "D" de respaldo) solo se dibuja en la primera página.
+      // El logo (imagen o "D" de respaldo) solo se dibuja en la primera página.
       if(!esPrimeraPagina) return;
-
-      const cx = 183, cy = 14, rOuter = 11, rInner = 9;
-
-      // Sombra suave: círculo gris levemente desplazado, da sensación de
-      // profundidad sin necesitar gradientes reales.
-      doc.setFillColor(215,215,215);
-      doc.circle(cx+0.7, cy+0.9, rOuter, 'F');
-
-      // Aro exterior de color de marca.
-      doc.setFillColor(255,122,48);
-      doc.circle(cx, cy, rOuter, 'F');
-
-      // Fondo blanco interior donde va el logo.
-      doc.setFillColor(255,255,255);
-      doc.circle(cx, cy, rInner, 'F');
-
-      const dibujarRespaldoTexto = ()=>{
-        doc.setFontSize(14);
-        doc.setTextColor(255,122,48);
-        doc.setFont(undefined, 'bold');
-        doc.text('D', cx, cy+1.6, { align:'center' });
-        doc.setFont(undefined, 'normal');
-      };
-
       if(logoUrl){
-        try{
-          const logoSize = rInner*1.8; // ligeramente menor al diámetro interior, sin desbordar
-          doc.addImage(logoUrl, 'PNG', cx-logoSize/2, cy-logoSize/2, logoSize, logoSize);
-        }catch(e){
-          console.error('No se pudo insertar logo.png en el PDF, se usa el respaldo de texto:', e);
-          dibujarRespaldoTexto();
-        }
-      } else {
-        dibujarRespaldoTexto();
+        try{ doc.addImage(logoUrl, 'PNG', 178, 18, 14, 14); return; }
+        catch(e){ console.error('No se pudo insertar logo.png en el PDF, se usa el respaldo vectorial:', e); }
       }
+      doc.setFillColor(255,122,48);
+      doc.circle(185, 25, 7, 'F');
+      doc.setFontSize(11);
+      doc.setTextColor(255,255,255);
+      doc.setFont(undefined, 'bold');
+      doc.text('D', 185, 27.5, { align:'center' });
+      doc.setFont(undefined, 'normal');
     };
     const nuevaPagina = ()=>{
       doc.addPage();
