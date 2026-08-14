@@ -1239,7 +1239,7 @@ async function renderInstituciones(){
       <div class="inst-meta">
         <span class="badge ${gestion==='Publico'?'pub':'priv'}">${escapeHtml(tipo)}</span>
         ${(!esOtroDepartamento && provincia===state.destinoProv) ? '<span class="badge pub">En tu provincia</span>' : ''}
-        ${esOtroDepartamento ? `<span class="badge ia">${escapeHtml(ubicacionTxt||'Otro departamento')}</span>` : ''}
+        ${esOtroDepartamento ? `<span class="badge ia">Ubicado en ${escapeHtml(ubicacionTxt||'otro departamento')}</span>` : ''}
       </div>`;
     card.onclick = ()=>{
       play('select');
