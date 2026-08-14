@@ -1239,8 +1239,7 @@ async function renderInstituciones(){
       <div class="inst-meta">
         <span class="badge ${gestion==='Publico'?'pub':'priv'}">${escapeHtml(tipo)}</span>
         ${(!esOtroDepartamento && provincia===state.destinoProv) ? '<span class="badge pub">En tu provincia</span>' : ''}
-        ${esOtroDepartamento ? '<span class="badge ia">Otro departamento</span>' : ''}
-        ${fuente==='ia' ? '<span class="badge ia">Verificado por IA</span>' : ''}
+        ${esOtroDepartamento ? `<span class="badge ia">${escapeHtml(ubicacionTxt||'Otro departamento')}</span>` : ''}
       </div>`;
     card.onclick = ()=>{
       play('select');
@@ -1262,7 +1261,9 @@ async function renderInstituciones(){
       wrap.appendChild(crearCard(i.nombre, i.ubigeo_provincias?.nombre, 'Instituto', i.gestion, i.costo_min, i.costo_max, 'db', state.destino, false));
     });
     universidades.forEach(u=>{
-      wrap.appendChild(crearCard(u.nombre, u.provincia, 'Universidad', u.gestion, u.costo_min, u.costo_max, 'ia', state.destino, false));
+      const uProv = u.ubigeo_provincias?.nombre || u.provincia || '';
+      const uDep = u.ubigeo_provincias?.ubigeo_departamentos?.nombre || u.departamento || state.destino;
+      wrap.appendChild(crearCard(u.nombre, uProv, 'Universidad', u.gestion, u.costo_min, u.costo_max, u._fuente || 'db', uDep, false));
     });
 
     const nombresDisponibles = [...institutos.map(i=>i.nombre), ...universidades.map(u=>u.nombre)];
@@ -1309,15 +1310,17 @@ async function renderInstituciones(){
     ));
   });
   altUniversidades.forEach(u=>{
+    const uProv = u.ubigeo_provincias?.nombre || u.provincia || '';
+    const uDep = u.ubigeo_provincias?.ubigeo_departamentos?.nombre || u.departamento || '';
     wrap.appendChild(crearCard(
       u.nombre,
-      u.provincia,
+      uProv,
       'Universidad',
       u.gestion,
       u.costo_min,
       u.costo_max,
-      'ia',
-      u.departamento || '',
+      u._fuente || 'db',
+      uDep,
       true
     ));
   });
