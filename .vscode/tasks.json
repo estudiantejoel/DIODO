@@ -1,0 +1,17 @@
+﻿{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "Git: Add, Commit y Push",
+      "type": "shell",
+      "command": "git add . && git commit -m \"actualizacion\" && git push",
+      "options": {
+        "shell": {
+          "executable": "cmd.exe",
+          "args": ["/c"]
+        }
+      },
+      "problemMatcher": []
+    }
+  ]
+}

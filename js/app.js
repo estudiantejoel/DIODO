@@ -83,6 +83,13 @@ function escapeHtml(str){
     .replaceAll("'",'&#39;');
 }
 
+// [FIX #8] Limpia espacios repetidos, espacios al inicio/fin, y caracteres
+// < > que podrían romper el layout o meterse como HTML en campos de texto
+// libre (nombre, colegio, carrera escrita a mano, etc).
+function limpiarTexto(str){
+  return (str||'').trim().replace(/\s+/g,' ').replace(/[<>]/g,'');
+}
+
 /* ===================== BADGE / MENÚ DE CUENTA ===================== */
 function toggleAccountMenu(e){
   if(e) e.stopPropagation();
@@ -468,7 +475,7 @@ selDist.addEventListener('change', async ()=>{
   }
   await refreshColegiosList();
 });
-document.getElementById('inDistOtro').addEventListener('input', (e)=>{ state.dist = e.target.value.trim(); });
+document.getElementById('inDistOtro').addEventListener('input', (e)=>{ state.dist = limpiarTexto(e.target.value); });
 async function refreshColegiosList(){
   const lista = await buscarColegiosPorDistrito(state.distId);
   const datalist = document.getElementById('colegiosList');
@@ -479,7 +486,7 @@ async function refreshColegiosList(){
     : state.dist ? `No tenemos colegios registrados de ${state.dist} todavía — escribe el tuyo y quedará guardado.` : '';
 }
 document.getElementById('inColegio').addEventListener('blur', (e)=>{
-  const nombre = e.target.value.trim();
+  const nombre = limpiarTexto(e.target.value);
   if(nombre) guardarColegioSiNoExiste(nombre, state.distId);
 });
 
@@ -491,10 +498,12 @@ document.getElementById('selSituacion').addEventListener('change', (e)=>{
 
 function validateAndGo(next){
   if(state.step===1){
-    state.nombre = document.getElementById('inNombre').value.trim();
-    state.apellido = document.getElementById('inApellido').value.trim();
+    // [FIX #8] Se limpia (trim + colapsar espacios + quitar < >) el texto
+    // libre antes de guardarlo en el estado / la base de datos.
+    state.nombre = limpiarTexto(document.getElementById('inNombre').value);
+    state.apellido = limpiarTexto(document.getElementById('inApellido').value);
     state.grado = document.getElementById('selGrado') ? document.getElementById('selGrado').value : '';
-    state.colegio = document.getElementById('inColegio') ? document.getElementById('inColegio').value.trim() : '';
+    state.colegio = document.getElementById('inColegio') ? limpiarTexto(document.getElementById('inColegio').value) : '';
     if(!state.nombre || !state.edad || !state.deptoId || (!state.distId && !state.dist) || !state.situacion){
       play('error'); toast('Completa los campos marcados antes de continuar.', true); return;
     }
@@ -612,7 +621,13 @@ async function renderPasoFuturo(){
   const otroInput = document.getElementById('inPresupuestoOtro');
   otroInput.style.display = (state.presupuestoCat==='otro') ? 'block' : 'none';
   otroInput.value = state.presupuestoMonto || '';
-  otroInput.oninput = ()=>{ state.presupuestoMonto = +otroInput.value || null; };
+  // [FIX #8] Se acota el monto entre 0 y 20000 (además del min/max del
+  // input en el HTML) para evitar negativos o cifras absurdas.
+  otroInput.oninput = ()=>{
+    let v = +otroInput.value || null;
+    if(v!==null){ v = Math.max(0, Math.min(20000, v)); }
+    state.presupuestoMonto = v;
+  };
 }
 async function fillProvDestino(){
   const selP = document.getElementById('selProvDestino');
@@ -658,7 +673,8 @@ function bindAcItems(items, esSugerencia){
 inCarrera.addEventListener('focus', ()=>{});
 inCarrera.addEventListener('input', ()=>{
   play('type');
-  state.carreraDeseada = inCarrera.value.trim();
+  // [FIX #8] limpiar texto libre de carrera antes de guardarlo
+  state.carreraDeseada = limpiarTexto(inCarrera.value);
   state.carreraDeseadaFamiliaId = null;
   clearTimeout(acTimer);
   const term = state.carreraDeseada;
@@ -808,6 +824,16 @@ function filtrarPesosRIASEC(pesos){
   return limpio;
 }
 
+// [FIX #1] Antes, el coseno se calculaba directamente sobre vectores de
+// valores 0–1 (sin centrar), lo que hacía que incluso un alumno "neutro en
+// todo" (0.5 en cada rasgo) obtuviera un score de afinidad muy alto contra
+// casi cualquier carrera, porque el dot product de dos vectores de solo
+// valores positivos nunca es negativo. Ahora restamos 0.5 a cada
+// componente (tanto del alumno como de los pesos de la carrera) ANTES de
+// calcular el coseno, para que el punto neutro quede en 0 en vez de 0.5.
+// Esto hace que el coseno se comporte como una correlación real: valores
+// cercanos a -1 (poca afinidad), 0 (neutro) o 1 (mucha afinidad). Luego
+// remapeamos ese rango [-1, 1] a [0, 100] para mostrarlo como porcentaje.
 function cosineScoreConConfianza(vectorAlumno, pesosCarrera){
   const keys = Object.keys(pesosCarrera||{});
   if(!keys.length) return null;
@@ -815,16 +841,18 @@ function cosineScoreConConfianza(vectorAlumno, pesosCarrera){
   keys.forEach(key=>{
     const componente = vectorAlumno[key];
     const valor = componente===null || componente===undefined ? 0 : componente;
-    const peso = pesosCarrera[key];
-    dot += valor*peso;
-    magAlumno += valor*valor;
-    magCarrera += peso*peso;
+    const valorCentrado = valor - 0.5;           // 0.5 (neutro) -> 0
+    const pesoCentrado = pesosCarrera[key] - 0.5; // 0.5 (neutro) -> 0
+    dot += valorCentrado*pesoCentrado;
+    magAlumno += valorCentrado*valorCentrado;
+    magCarrera += pesoCentrado*pesoCentrado;
     if(componente!==null && componente!==undefined){ sumDistancia += Math.abs(componente-0.5)*2; nConRespuesta++; }
   });
   const confianza = nConRespuesta ? Math.round((sumDistancia/nConRespuesta)*100) : 0;
   if(magAlumno===0 || magCarrera===0) return { pct:50, confianza };
   const cos = dot/(Math.sqrt(magAlumno)*Math.sqrt(magCarrera));
-  return { pct: Math.round(cos*100), confianza };
+  const pct = Math.round(((cos+1)/2)*100); // [-1,1] -> [0,100]
+  return { pct, confianza };
 }
 
 function aplicarFiltroDeVeto(pctBase, vectorAlumno, pesosCarrera){
@@ -874,10 +902,18 @@ function buscarFamiliaAproximada(nombreCarrera){
   return mejor;
 }
 
+// [FIX #2] Se agrega un log con qué carrera escribió el alumno y a qué
+// familia terminó siendo asignada (o si quedó sin match), para poder
+// auditar después del piloto si hubo errores de match evidentes.
 function intentarResolverCarreraEscrita(){
   if(!state.carreraDeseada || state.carreraDeseadaFamiliaId) return;
   const fam = buscarFamiliaAproximada(state.carreraDeseada);
-  if(fam){ state.carreraDeseadaFamiliaId = fam.id; }
+  if(fam){
+    console.log(`[MatchCarrera] "${state.carreraDeseada}" -> familia "${fam.nombre}" (id ${fam.id})`);
+    state.carreraDeseadaFamiliaId = fam.id;
+  } else {
+    console.log(`[MatchCarrera] "${state.carreraDeseada}" -> sin match aproximado, quedará como carrera personalizada`);
+  }
 }
 
 function computeDefaultPrincipal(ranked){
@@ -1136,6 +1172,29 @@ async function generarDetalleCarreraConIA(carreraFamiliaId, nombreCarrera, inten
 }
 
 /* ===================== PANTALLA 6: INSTITUCIONES ===================== */
+
+// [FIX #6] Se aplica el mismo patrón de reintento (2-3 intentos con espera
+// creciente entre cada uno) que ya usaba generarDetalleCarreraConIA, para
+// que esta llamada a la IA tampoco muestre un error directo al alumno ante
+// una falla temporal.
+async function fetchInstitucionesConReintento(payload, intentos = 3){
+  for(let intento = 1; intento <= intentos; intento++){
+    try{
+      const res = await fetch(EDGE_FN_BUSCAR_INSTITUCIONES, {
+        method:'POST',
+        headers:{ 'Content-Type':'application/json', 'Authorization':`Bearer ${SUPABASE_ANON_KEY}` },
+        body: JSON.stringify(payload)
+      });
+      if(!res.ok) throw new Error('HTTP '+res.status);
+      return await res.json();
+    }catch(e){
+      console.error(`[Instituciones] intento ${intento}/${intentos} falló:`, e);
+      if(intento >= intentos) throw e;
+      await new Promise(r=>setTimeout(r, 900*intento));
+    }
+  }
+}
+
 async function renderInstituciones(){
   const carrera = state.carreraElegida;
   document.getElementById('carreraNombre6').textContent = carrera;
@@ -1155,13 +1214,9 @@ async function renderInstituciones(){
 
   let resultado = { institutos:[], universidades:[], alternativas:null };
   try{
-    const res = await fetch(EDGE_FN_BUSCAR_INSTITUCIONES, {
-      method:'POST',
-      headers:{ 'Content-Type':'application/json', 'Authorization':`Bearer ${SUPABASE_ANON_KEY}` },
-      body: JSON.stringify({ carrera, departamento: state.destino, provincia: state.destinoProv, presupuestoMax: montoMax })
+    resultado = await fetchInstitucionesConReintento({
+      carrera, departamento: state.destino, provincia: state.destinoProv, presupuestoMax: montoMax
     });
-    if(!res.ok) throw new Error('HTTP '+res.status);
-    resultado = await res.json();
   } catch(e){
     console.error(e);
     toast('No se pudo consultar instituciones en este momento.', true);
@@ -1398,7 +1453,8 @@ function pintarPreguntaPreplan(){
     row.innerHTML = `<input type="text" id="preplanInputTexto" placeholder="Escribe aquí o deja vacío y continúa"><button class="btn-primary">Continuar</button>`;
     const input = row.querySelector('input');
     const btn = row.querySelector('button');
-    const enviar = ()=>{ play('select'); responderPreplan(p.clave, input.value.trim(), input.value.trim()||'(sin comentarios)'); };
+    // [FIX #8] limpiar el texto libre del preplan antes de guardarlo
+    const enviar = ()=>{ play('select'); const v = limpiarTexto(input.value); responderPreplan(p.clave, v, v||'(sin comentarios)'); };
     btn.onclick = enviar;
     input.onkeydown = (e)=>{ if(e.key==='Enter'){ e.preventDefault(); enviar(); } };
     opcionesWrap.appendChild(row);
@@ -1526,7 +1582,7 @@ function agregarBurbujaChat(texto, rol){
 
 async function enviarPreguntaChat(){
   const input = document.getElementById('chatInput');
-  const pregunta = input.value.trim();
+  const pregunta = limpiarTexto(input.value);
   if(!pregunta) return;
   const btn = document.getElementById('btnChatEnviar');
 

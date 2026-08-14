@@ -80,6 +80,13 @@
           </button>
           <button class="btn-link" onclick="play('tap'); state.guest=true; goTo(1);">Continuar como invitado</button>
         </div>
+
+        <!-- [FIX #5] Aviso de privacidad: el flujo pide edad, nombre, colegio
+             y ubicación de adolescentes, así que se avisa qué se hace con
+             esos datos antes de empezar el test. -->
+        <p class="privacy-notice" style="font-size:12px; color:var(--text-dim); margin-top:8px; text-align:center; line-height:1.5;">
+          Tus datos (nombre, edad, colegio, ubicación) se usan solo para generar tu plan de carrera y no se comparten con terceros.
+        </p>
       </div>
     </div>
   </div>
@@ -188,7 +195,8 @@
         <div class="radio-card" data-val="1500+"><div class="radio-dot"></div><div class="radio-text"><strong>Escala alta</strong><span>Más de S/. 1500</span></div></div>
         <div class="radio-card" data-val="otro"><div class="radio-dot"></div><div class="radio-text"><strong>Otro monto</strong><span>Escribir una cifra exacta</span></div></div>
       </div>
-      <input type="number" min="0" id="inPresupuestoOtro" placeholder="Escribe el monto mensual en soles" style="display:none;">
+      <!-- [FIX #8] min y max para evitar montos negativos o irreales -->
+      <input type="number" min="0" max="20000" id="inPresupuestoOtro" placeholder="Escribe el monto mensual en soles" style="display:none;">
     </div>
 
     <div class="nav-row">
