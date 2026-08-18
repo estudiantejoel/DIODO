@@ -1234,7 +1234,9 @@ async function renderInstituciones(){
     const card = document.createElement('div');
     const estaSeleccionada = nombre===institucionPrevia;
     card.className='cardbox'+(estaSeleccionada?' selected':'');
-    const costoTxt = (costoMin===0 && costoMax===0) ? 'Gratuita (pública)' : `S/. ${costoMin} – S/. ${costoMax>=99999?'1500+':costoMax}`;
+    const costoTxt = (costoMin===0 && costoMax===0) ? 'Gratuita (pública)'
+      : (costoMin===null || costoMin===undefined) ? 'Precio no confirmado'
+      : `S/. ${costoMin} – S/. ${costoMax>=99999?'1500+':costoMax}`;
     card.innerHTML = `<h4>${escapeHtml(nombre)}</h4><p>${escapeHtml(provincia||'')}${provincia?', ':''}${escapeHtml(ubicacionTxt||'')} · ${costoTxt}</p>
       <div class="inst-meta">
         <span class="badge ${gestion==='Publico'?'pub':'priv'}">${escapeHtml(tipo)}</span>
